@@ -1,0 +1,11 @@
+{
+  "name": "@chrome-ext/wanted-helper",
+  "version": "1.0.0",
+  "description": "원티드 페이지를 보조하는 크롬 확장 프로그램",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "private": true
+}

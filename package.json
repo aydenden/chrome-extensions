@@ -1,0 +1,14 @@
+{
+  "name": "chrome-extensions",
+  "private": true,
+  "workspaces": ["extensions/*"],
+  "scripts": {
+    "build": "bun run --filter './extensions/*' build",
+    "build:wanted": "bun run --cwd extensions/wanted-helper build",
+    "dev:wanted": "bun run --cwd extensions/wanted-helper dev"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.12",
+    "typescript": "^5.5.3"
+  }
+}
