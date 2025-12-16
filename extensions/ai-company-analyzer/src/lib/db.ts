@@ -5,7 +5,6 @@ import type {
   BinaryData,
   AnalysisResult,
   ExtractedText,
-  VectorIndex,
 } from '@/types/storage';
 
 export class AppDatabase extends Dexie {
@@ -13,9 +12,7 @@ export class AppDatabase extends Dexie {
   extractedData!: Table<ExtractedData>;
   binaryData!: Table<BinaryData>;
   analysisResults!: Table<AnalysisResult>;
-  // RAG 시스템 테이블
   extractedTexts!: Table<ExtractedText>;
-  vectorIndex!: Table<VectorIndex>;
 
   constructor() {
     super('ai-company-analyzer');
@@ -65,6 +62,16 @@ export class AppDatabase extends Dexie {
             : data.classificationStatus || 'pending';
         }
       });
+    });
+
+    // v4: 임베딩 제거 (vectorIndex 테이블 삭제)
+    this.version(4).stores({
+      companies: 'id, name, createdAt, updatedAt',
+      extractedData: 'id, companyId, type, subCategory, classificationStatus, extractionStatus, extractedAt, [companyId+type], [companyId+subCategory], [companyId+extractionStatus]',
+      binaryData: 'id',
+      analysisResults: 'id, companyId, analyzedAt',
+      extractedTexts: 'id, companyId, category, createdAt, [companyId+category]',
+      vectorIndex: null, // 테이블 삭제
     });
   }
 }

@@ -9,7 +9,6 @@ import type {
   ClassificationStatus,
   ExtractionStatus,
   ExtractedText,
-  VectorIndex,
   ExtractedMetadata,
 } from '@/types/storage';
 
@@ -301,11 +300,6 @@ export async function updateExtractionStatus(
 ): Promise<void> {
   const updates: Partial<ExtractedData> = { extractionStatus: status };
 
-  // 완료 시간 기록
-  if (status === 'completed') {
-    updates.embeddedAt = Date.now();
-  }
-
   // 에러 메시지 저장
   if (status === 'failed' && error) {
     updates.extractionError = error;
@@ -321,11 +315,11 @@ export async function markTextExtracted(id: string): Promise<void> {
   });
 }
 
-// 추출 대기중인 데이터 조회 (새 RAG 파이프라인용)
+// 추출 대기중인 데이터 조회
 export async function getPendingExtractions(): Promise<ExtractedData[]> {
   return db.extractedData
     .where('extractionStatus')
-    .anyOf(['pending', 'classifying', 'extracting_text', 'embedding'])
+    .anyOf(['pending', 'classifying', 'extracting_text'])
     .toArray();
 }
 
@@ -381,103 +375,30 @@ export async function getExtractedTextsByCategory(
     .toArray();
 }
 
-// ============ 벡터 인덱스 CRUD ============
+// ============ 텍스트 데이터 정리 ============
 
-// 벡터 인덱스 저장 (청크 단위)
-export async function saveVectorIndex(
-  id: string,
-  companyId: string,
-  category: ImageSubCategory,
-  chunkIndex: number,
-  chunkText: string,
-  embedding: Float32Array
-): Promise<void> {
-  await db.vectorIndex.put({
-    id,
-    companyId,
-    category,
-    chunkIndex,
-    chunkText,
-    embedding,
-    createdAt: Date.now(),
-  });
+// 특정 데이터의 추출 텍스트 삭제
+export async function deleteExtractedTextData(id: string): Promise<void> {
+  await db.extractedTexts.delete(id);
 }
 
-// 벡터 인덱스 일괄 저장
-export async function saveVectorIndexBatch(
-  id: string,
-  companyId: string,
-  category: ImageSubCategory,
-  chunks: Array<{ chunkText: string; embedding: Float32Array }>
-): Promise<void> {
-  const now = Date.now();
-  const records: VectorIndex[] = chunks.map((chunk, index) => ({
-    id,
-    companyId,
-    category,
-    chunkIndex: index,
-    chunkText: chunk.chunkText,
-    embedding: chunk.embedding,
-    createdAt: now,
-  }));
-
-  await db.vectorIndex.bulkPut(records);
+// 회사의 모든 추출 텍스트 삭제
+export async function deleteCompanyExtractedTexts(companyId: string): Promise<void> {
+  await db.extractedTexts.where('companyId').equals(companyId).delete();
 }
 
-// 특정 데이터의 벡터 인덱스 조회
-export async function getVectorIndexes(id: string): Promise<VectorIndex[]> {
-  return db.vectorIndex.where('id').equals(id).toArray();
+// 전체 추출 텍스트 삭제
+export async function clearAllExtractedTexts(): Promise<void> {
+  await db.extractedTexts.clear();
 }
 
-// 회사별 모든 벡터 인덱스 조회
-export async function getVectorIndexesByCompany(companyId: string): Promise<VectorIndex[]> {
-  return db.vectorIndex.where('companyId').equals(companyId).toArray();
-}
+// ============ 회사 삭제 확장 ============
 
-// 카테고리별 벡터 인덱스 조회
-export async function getVectorIndexesByCategory(
-  companyId: string,
-  category: ImageSubCategory
-): Promise<VectorIndex[]> {
-  return db.vectorIndex
-    .where('[companyId+category]')
-    .equals([companyId, category])
-    .toArray();
-}
-
-// ============ RAG 데이터 정리 ============
-
-// 특정 데이터의 RAG 관련 데이터 삭제
-export async function deleteRAGData(id: string): Promise<void> {
-  await db.transaction('rw', [db.extractedTexts, db.vectorIndex], async () => {
-    await db.extractedTexts.delete(id);
-    await db.vectorIndex.where('id').equals(id).delete();
-  });
-}
-
-// 회사의 모든 RAG 데이터 삭제
-export async function deleteCompanyRAGData(companyId: string): Promise<void> {
-  await db.transaction('rw', [db.extractedTexts, db.vectorIndex], async () => {
-    await db.extractedTexts.where('companyId').equals(companyId).delete();
-    await db.vectorIndex.where('companyId').equals(companyId).delete();
-  });
-}
-
-// 전체 RAG 데이터 삭제
-export async function clearAllRAGData(): Promise<void> {
-  await db.transaction('rw', [db.extractedTexts, db.vectorIndex], async () => {
-    await db.extractedTexts.clear();
-    await db.vectorIndex.clear();
-  });
-}
-
-// ============ 회사 삭제 확장 (RAG 포함) ============
-
-// 회사 삭제 (RAG 데이터 포함)
-export async function deleteCompanyWithRAG(companyId: string): Promise<void> {
+// 회사 삭제 (추출 텍스트 포함)
+export async function deleteCompanyWithTexts(companyId: string): Promise<void> {
   await db.transaction(
     'rw',
-    [db.companies, db.extractedData, db.binaryData, db.analysisResults, db.extractedTexts, db.vectorIndex],
+    [db.companies, db.extractedData, db.binaryData, db.analysisResults, db.extractedTexts],
     async () => {
       // 관련 데이터 ID 조회
       const dataIds = await db.extractedData
@@ -494,9 +415,8 @@ export async function deleteCompanyWithRAG(companyId: string): Promise<void> {
       // 분석 결과 삭제
       await db.analysisResults.where('companyId').equals(companyId).delete();
 
-      // RAG 데이터 삭제
+      // 추출 텍스트 삭제
       await db.extractedTexts.where('companyId').equals(companyId).delete();
-      await db.vectorIndex.where('companyId').equals(companyId).delete();
 
       // 회사 삭제
       await db.companies.delete(companyId);

@@ -38,12 +38,11 @@ export type ImageSubCategory =
 // 분류 상태 (레거시 호환)
 export type ClassificationStatus = 'pending' | 'completed' | 'failed';
 
-// 추출 상태 (RAG 파이프라인용 확장)
+// 추출 상태 (파이프라인용)
 export type ExtractionStatus =
   | 'pending'           // 대기
   | 'classifying'       // 분류 중
   | 'extracting_text'   // 텍스트 추출 중
-  | 'embedding'         // 임베딩 생성 중
   | 'completed'         // 완료
   | 'failed';           // 실패
 
@@ -62,12 +61,11 @@ export interface ExtractedData {
   type: DataType;
   subCategory?: ImageSubCategory;           // AI 분류 결과
   classificationStatus: ClassificationStatus; // 분류 상태 (레거시)
-  extractionStatus?: ExtractionStatus;      // RAG 파이프라인 상태
+  extractionStatus?: ExtractionStatus;      // 파이프라인 상태
   extractionError?: string;                 // 실패 시 에러 메시지
   source: string;       // 추출한 URL
   extractedAt: number;
   textExtractedAt?: number;   // 텍스트 추출 완료 시간
-  embeddedAt?: number;        // 임베딩 완료 시간
 }
 
 // 바이너리 데이터 (이미지, PDF)
@@ -159,23 +157,12 @@ export interface ExtractedMetadata {
   sentiment?: SentimentInfo;
 }
 
-// 추출된 텍스트 (신규 테이블)
+// 추출된 텍스트
 export interface ExtractedText {
   id: string;              // FK → ExtractedData.id
   companyId: string;       // 검색 최적화용
   category: ImageSubCategory;
   rawText: string;         // AI가 추출한 전체 텍스트
   metadata: ExtractedMetadata;
-  createdAt: number;
-}
-
-// 벡터 인덱스 (신규 테이블)
-export interface VectorIndex {
-  id: string;              // FK → ExtractedData.id
-  companyId: string;       // 회사별 검색용
-  category: ImageSubCategory;
-  chunkIndex: number;      // 0부터 시작
-  chunkText: string;       // 원본 청크 텍스트 (검색 결과 표시용)
-  embedding: Float32Array; // 384차원 (all-MiniLM-L6-v2)
   createdAt: number;
 }

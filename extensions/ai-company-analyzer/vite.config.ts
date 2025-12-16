@@ -1,7 +1,7 @@
 import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
-import { copyFileSync, existsSync, mkdirSync } from 'fs';
+import { copyFileSync, existsSync } from 'fs';
 
 // 정적 파일 복사 플러그인
 function copyStaticFiles(): Plugin {
@@ -26,30 +26,6 @@ function copyStaticFiles(): Plugin {
       } else {
         console.warn('Warning: lindera_wasm_bg.wasm not found at', linderaWasmSrc);
       }
-
-      // onnxruntime-web WASM 파일 복사 (임베딩 엔진용)
-      const transformersDir = resolve(__dirname, 'dist/transformers');
-      if (!existsSync(transformersDir)) {
-        mkdirSync(transformersDir, { recursive: true });
-      }
-
-      const ortWasmFiles = [
-        'ort-wasm-simd-threaded.wasm',
-        'ort-wasm-simd-threaded.jsep.wasm',
-        'ort-wasm-simd-threaded.mjs',
-        'ort-wasm-simd-threaded.jsep.mjs',
-      ];
-
-      for (const wasmFile of ortWasmFiles) {
-        const src = resolve(__dirname, `../../node_modules/onnxruntime-web/dist/${wasmFile}`);
-        const dest = resolve(transformersDir, wasmFile);
-        if (existsSync(src)) {
-          copyFileSync(src, dest);
-          console.log(`${wasmFile} copied to dist/transformers/`);
-        } else {
-          console.warn(`Warning: ${wasmFile} not found at`, src);
-        }
-      }
     },
   };
 }
@@ -71,7 +47,6 @@ export default defineConfig({
         detail: resolve(__dirname, 'src/pages/detail/detail.html'),
         settings: resolve(__dirname, 'src/pages/settings/settings.html'),
         background: resolve(__dirname, 'src/background/index.ts'),
-        offscreen: resolve(__dirname, 'src/offscreen/offscreen.html'),
         // content는 esbuild로 별도 번들링 (IIFE 형식 필요)
       },
       output: {

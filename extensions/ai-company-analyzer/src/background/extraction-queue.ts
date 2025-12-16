@@ -1,15 +1,10 @@
 /**
  * 통합 추출 큐
- * 3단계 파이프라인: 분류 → 텍스트 추출 → 임베딩 생성
+ * 2단계 파이프라인: 분류 → 텍스트 추출
  */
 
 import { classifyImage } from './classifier';
 import { initEngine, isEngineReady, analyzeImage } from './smolvlm-engine';
-import {
-  initEmbeddingEngine,
-  generateEmbeddings,
-  isEmbeddingEngineReady,
-} from './embedding-engine';
 import { buildExtractionPrompt } from '@/lib/prompts/extraction';
 import {
   getImageBlob,
@@ -17,7 +12,6 @@ import {
   updateExtractedDataCategory,
   updateExtractionStatus,
   saveExtractedText,
-  saveVectorIndexBatch,
   getPendingExtractions,
 } from '@/lib/storage';
 import type { DataType, ExtractionStatus, ExtractedMetadata } from '@/types/storage';
@@ -26,7 +20,7 @@ import type { DataType, ExtractionStatus, ExtractedMetadata } from '@/types/stor
 interface ExtractionTask {
   extractedDataId: string;
   siteType: DataType;
-  currentPhase: 'classify' | 'extract' | 'embed';
+  currentPhase: 'classify' | 'extract';
   retryCount: number;
 }
 
@@ -139,12 +133,6 @@ class ExtractionQueue {
       // 2단계: 텍스트 추출
       if (task.currentPhase === 'extract') {
         await this.runTextExtraction(task);
-        task.currentPhase = 'embed';
-      }
-
-      // 3단계: 임베딩 생성
-      if (task.currentPhase === 'embed') {
-        await this.runEmbedding(task);
       }
 
       // 완료
@@ -303,65 +291,6 @@ class ExtractionQueue {
       parsed.rawText || response, // 파싱 실패 시 원본 사용
       parsed
     );
-  }
-
-  /**
-   * 3단계: 임베딩 생성
-   */
-  private async runEmbedding(task: ExtractionTask): Promise<void> {
-    console.log('[ExtractionQueue] 임베딩 생성 시작:', task.extractedDataId);
-    await updateExtractionStatus(task.extractedDataId, 'embedding');
-
-    // 데이터 조회
-    console.log('[ExtractionQueue] 추출 데이터 조회 중...');
-    const data = await getExtractedData(task.extractedDataId);
-    if (!data) {
-      throw new Error('추출 데이터를 찾을 수 없습니다.');
-    }
-    console.log('[ExtractionQueue] 추출 데이터 조회 완료:', data.id);
-
-    // 추출된 텍스트 조회
-    console.log('[ExtractionQueue] 추출 텍스트 조회 중...');
-    const { getExtractedText } = await import('@/lib/storage');
-    const textData = await getExtractedText(task.extractedDataId);
-    if (!textData) {
-      throw new Error(`추출된 텍스트를 찾을 수 없습니다. (id: ${task.extractedDataId})`);
-    }
-    console.log('[ExtractionQueue] 추출 텍스트 조회 완료, rawText 길이:', textData.rawText?.length || 0);
-
-    // 임베딩 모델 준비
-    const embeddingReady = await isEmbeddingEngineReady();
-    console.log('[ExtractionQueue] 임베딩 엔진 상태:', embeddingReady);
-    if (!embeddingReady) {
-      console.log('[ExtractionQueue] 임베딩 모델 로딩...');
-      await initEmbeddingEngine();
-      console.log('[ExtractionQueue] 임베딩 모델 로딩 완료');
-    }
-
-    // 임베딩 생성
-    console.log('[ExtractionQueue] 임베딩 생성 중...');
-    const embeddings = await generateEmbeddings(textData.rawText);
-    console.log('[ExtractionQueue] 임베딩 생성 완료:', embeddings.length, '개 청크');
-
-    if (embeddings.length === 0) {
-      console.warn('[ExtractionQueue] 임베딩 결과 없음, 스킵');
-      return;
-    }
-
-    // DB 저장
-    console.log('[ExtractionQueue] 벡터 인덱스 저장 중...');
-    const chunks = embeddings.map(e => ({
-      chunkText: e.chunkText,
-      embedding: e.embedding,
-    }));
-
-    await saveVectorIndexBatch(
-      task.extractedDataId,
-      data.companyId,
-      data.subCategory || 'unknown',
-      chunks
-    );
-    console.log('[ExtractionQueue] 벡터 인덱스 저장 완료');
   }
 
   /**

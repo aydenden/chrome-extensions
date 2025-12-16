@@ -7,8 +7,7 @@
   "permissions": [
     "storage",
     "tabs",
-    "activeTab",
-    "offscreen"
+    "activeTab"
   ],
 
   "host_permissions": [

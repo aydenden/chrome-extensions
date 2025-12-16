@@ -1,7 +1,7 @@
 /**
  * AI 파이프라인 E2E 테스트
  *
- * VLM (Qwen2-VL) 및 임베딩 엔진 (all-MiniLM) 테스트
+ * VLM (Qwen2-VL) 엔진 테스트
  * 주의: 모델 로드에 1-2분 소요
  */
 
@@ -35,23 +35,6 @@ test.describe('AI Engine Status', () => {
     expect(response.status).toHaveProperty('loadProgress');
   });
 
-  test('임베딩 엔진 상태를 조회할 수 있다', async ({ page, extensionId }) => {
-    await page.goto(getPopupUrl(extensionId));
-
-    // Service Worker에 메시지 전송
-    const response = await page.evaluate(() => {
-      return new Promise((resolve) => {
-        chrome.runtime.sendMessage({ type: 'GET_EMBEDDING_ENGINE_STATUS' }, resolve);
-      });
-    }) as { success: boolean; status: Record<string, unknown> };
-
-    // 응답 구조 확인: { success: true, status: { isReady, isLoading, modelId, ... } }
-    expect(response).toHaveProperty('success', true);
-    expect(response).toHaveProperty('status');
-    expect(response.status).toHaveProperty('isReady');
-    expect(response.status).toHaveProperty('isLoading');
-    expect(response.status).toHaveProperty('modelId');
-  });
 });
 
 test.describe('AI Model Loading', () => {
@@ -84,32 +67,6 @@ test.describe('AI Model Loading', () => {
     expect(response.status).toHaveProperty('isReady');
   });
 
-  test('임베딩 엔진을 초기화할 수 있다', async ({ page, extensionId }) => {
-    test.setTimeout(AI_MODEL_TIMEOUT);
-
-    await page.goto(getPopupUrl(extensionId));
-
-    // 임베딩 초기화 요청
-    const initResult = await page.evaluate(() => {
-      return new Promise((resolve) => {
-        chrome.runtime.sendMessage({ type: 'INIT_EMBEDDING_ENGINE' }, resolve);
-      });
-    }) as { success: boolean; status?: Record<string, unknown> };
-
-    // 초기화 성공 또는 이미 초기화됨
-    expect(initResult).toBeDefined();
-    expect(initResult).toHaveProperty('success');
-
-    // 상태 확인
-    const response = await page.evaluate(() => {
-      return new Promise((resolve) => {
-        chrome.runtime.sendMessage({ type: 'GET_EMBEDDING_ENGINE_STATUS' }, resolve);
-      });
-    }) as { success: boolean; status: Record<string, unknown> };
-
-    expect(response).toHaveProperty('success', true);
-    expect(response.status).toHaveProperty('isReady');
-  });
 });
 
 test.describe('Message Handling', () => {

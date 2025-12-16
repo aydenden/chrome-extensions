@@ -11,10 +11,6 @@ import {
   disposeEngine,
 } from './smolvlm-engine';
 import {
-  initEmbeddingEngine,
-  getEmbeddingEngineStatus,
-} from './embedding-engine';
-import {
   getAllCompanies,
   createCompany,
   saveImage,
@@ -22,7 +18,6 @@ import {
   getExtractedData,
   manualClassify,
   getExtractedText,
-  updateExtractionStatus,
 } from '@/lib/storage';
 import {
   classificationQueue,
@@ -35,13 +30,10 @@ import {
   requestReExtraction,
 } from './extraction-queue';
 import { buildAnalysisPrompt } from '@/lib/prompts';
-import { searchByCompany, searchAll, getVectorStats } from '@/lib/vector-search';
 import {
   gatherAnalysisContext,
   buildRAGAnalysisPrompt,
   buildCustomQueryPrompt,
-  buildFinancialAnalysisPrompt,
-  buildReviewAnalysisPrompt,
   checkContextAvailability,
 } from '@/lib/prompts/rag-analysis';
 import type { DataType, ImageSubCategory } from '@/types/storage';
@@ -59,11 +51,6 @@ registerCaptureHandler();
 
 // 메시지 리스너
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  // Offscreen Document 전용 메시지는 무시 (Offscreen이 직접 처리)
-  if (message.target === 'offscreen') {
-    return false;
-  }
-
   console.log('Message received:', message);
 
   switch (message.type) {
@@ -475,27 +462,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       })();
       return true;
 
-    case 'RAG_SEARCH':
-      // 벡터 검색
-      (async () => {
-        try {
-          const { companyId, query, options } = message.data;
-          let results;
-          if (companyId) {
-            results = await searchByCompany(companyId, query, options);
-          } else {
-            results = await searchAll(query, options);
-          }
-          sendResponse({ success: true, data: results });
-        } catch (error) {
-          sendResponse({
-            success: false,
-            error: error instanceof Error ? error.message : '알 수 없는 오류',
-          });
-        }
-      })();
-      return true;
-
     case 'RAG_ANALYZE':
       // RAG 기반 종합 분석
       (async () => {
@@ -582,22 +548,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       })();
       return true;
 
-    case 'GET_VECTOR_STATS':
-      // 벡터 통계 조회
-      (async () => {
-        try {
-          const { companyId } = message.data || {};
-          const stats = await getVectorStats(companyId);
-          sendResponse({ success: true, data: stats });
-        } catch (error) {
-          sendResponse({
-            success: false,
-            error: error instanceof Error ? error.message : '알 수 없는 오류',
-          });
-        }
-      })();
-      return true;
-
     case 'CHECK_RAG_AVAILABILITY':
       // RAG 데이터 가용성 체크
       (async () => {
@@ -609,41 +559,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({
             success: false,
             error: error instanceof Error ? error.message : '알 수 없는 오류',
-          });
-        }
-      })();
-      return true;
-
-    case 'INIT_EMBEDDING_ENGINE':
-      // 임베딩 엔진 초기화
-      (async () => {
-        try {
-          await initEmbeddingEngine((progress) => {
-            chrome.runtime.sendMessage({
-              type: 'EMBEDDING_PROGRESS',
-              data: progress,
-            }).catch(() => {});
-          });
-          sendResponse({ success: true, status: getEmbeddingEngineStatus() });
-        } catch (error) {
-          sendResponse({
-            success: false,
-            error: error instanceof Error ? error.message : '알 수 없는 오류',
-          });
-        }
-      })();
-      return true;
-
-    case 'GET_EMBEDDING_ENGINE_STATUS':
-      // 임베딩 엔진 상태 조회 (비동기)
-      (async () => {
-        try {
-          const status = await getEmbeddingEngineStatus();
-          sendResponse({ success: true, status });
-        } catch (error) {
-          sendResponse({
-            success: false,
-            error: error instanceof Error ? error.message : '상태 조회 실패',
           });
         }
       })();
@@ -674,23 +589,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const { getExtractedText: fetchExtractedText } = await import('@/lib/storage');
           const text = await fetchExtractedText(extractedDataId);
           sendResponse({ success: true, text });
-        } catch (error) {
-          sendResponse({
-            success: false,
-            error: error instanceof Error ? error.message : '알 수 없는 오류',
-          });
-        }
-      })();
-      return true;
-
-    case 'GET_VECTOR_INDEX':
-      // VectorIndex 조회 (테스트용)
-      (async () => {
-        try {
-          const { companyId } = message.data;
-          const { getVectorIndexesByCompany } = await import('@/lib/storage');
-          const vectors = await getVectorIndexesByCompany(companyId);
-          sendResponse({ success: true, vectors });
         } catch (error) {
           sendResponse({
             success: false,
