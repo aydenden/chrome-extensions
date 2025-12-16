@@ -1,0 +1,636 @@
+/* 전역 스타일 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: #f5f5f5;
+  color: #333;
+  line-height: 1.6;
+}
+
+/* 페이지 레이아웃 */
+.detail-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  min-height: 100vh;
+}
+
+/* 로딩 상태 */
+.detail-page.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.loading-spinner {
+  font-size: 18px;
+  color: #666;
+}
+
+/* 에러 상태 */
+.detail-page.error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.error-message {
+  text-align: center;
+  padding: 40px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.error-message h2 {
+  color: #e53e3e;
+  margin-bottom: 16px;
+}
+
+.error-message p {
+  color: #666;
+  margin-bottom: 24px;
+}
+
+.error-message button {
+  padding: 10px 20px;
+  background: #3182ce;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.error-message button:hover {
+  background: #2c5aa0;
+}
+
+/* 헤더 */
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 30px;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.header-left,
+.header-right {
+  flex: 0 0 auto;
+}
+
+.header-center {
+  flex: 1;
+  text-align: center;
+}
+
+.back-button {
+  padding: 8px 16px;
+  background: #f0f0f0;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
+}
+
+.back-button:hover {
+  background: #e0e0e0;
+}
+
+.header-center h1 {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.company-meta {
+  font-size: 12px;
+  color: #666;
+}
+
+.company-meta span {
+  margin: 0 8px;
+}
+
+.reanalyze-button {
+  padding: 10px 20px;
+  background: #3182ce;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.reanalyze-button:hover {
+  background: #2c5aa0;
+}
+
+.reanalyze-button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+/* AI 분석 결과 섹션 */
+.analysis-section-wrapper {
+  margin-bottom: 30px;
+}
+
+.analysis-card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 24px;
+}
+
+.analysis-card h2 {
+  font-size: 20px;
+  margin-bottom: 20px;
+  color: #333;
+}
+
+.analysis-card.analyzing {
+  text-align: center;
+  padding: 40px;
+}
+
+.analysis-card.analyzing h2 {
+  color: #3182ce;
+}
+
+.analysis-card.empty {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+}
+
+/* 종합 점수 */
+.score-section {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 30px;
+}
+
+.total-score {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.score-label {
+  font-size: 14px;
+  color: #666;
+}
+
+.score-value {
+  font-size: 48px;
+  font-weight: bold;
+  color: #3182ce;
+}
+
+.score-max {
+  font-size: 20px;
+  color: #666;
+}
+
+/* 분석 섹션 */
+.analysis-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.analysis-section h3 {
+  font-size: 16px;
+  margin-bottom: 12px;
+  color: #333;
+}
+
+/* Runway */
+.runway-info {
+  background: #f7fafc;
+  padding: 16px;
+  border-radius: 4px;
+}
+
+.runway-months {
+  font-size: 24px;
+  font-weight: bold;
+  color: #3182ce;
+  margin-bottom: 8px;
+}
+
+.runway-confidence {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 12px;
+}
+
+.runway-reasoning {
+  font-size: 14px;
+  color: #333;
+  line-height: 1.6;
+}
+
+/* 재무 리스크 */
+.risk-level {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 12px;
+}
+
+.risk-level.risk-high {
+  background: #fed7d7;
+  color: #c53030;
+}
+
+.risk-level.risk-medium {
+  background: #feebc8;
+  color: #c05621;
+}
+
+.risk-level.risk-low {
+  background: #c6f6d5;
+  color: #22543d;
+}
+
+.risk-factors {
+  list-style: none;
+  padding: 0;
+}
+
+.risk-factors li {
+  padding: 8px 0;
+  padding-left: 20px;
+  position: relative;
+}
+
+.risk-factors li:before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: #3182ce;
+}
+
+/* 리뷰 요약 */
+.review-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.review-positive,
+.review-negative {
+  padding: 16px;
+  border-radius: 4px;
+}
+
+.review-positive {
+  background: #f0fff4;
+  border-left: 4px solid #38a169;
+}
+
+.review-negative {
+  background: #fff5f5;
+  border-left: 4px solid #e53e3e;
+}
+
+.review-positive h4,
+.review-negative h4 {
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.review-positive ul,
+.review-negative ul {
+  list-style: none;
+  padding: 0;
+}
+
+.review-positive li,
+.review-negative li {
+  padding: 4px 0;
+  font-size: 14px;
+}
+
+.review-summary-text {
+  background: #f7fafc;
+  padding: 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  color: #333;
+  line-height: 1.6;
+}
+
+.analysis-meta {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #e0e0e0;
+  font-size: 12px;
+  color: #666;
+  text-align: right;
+}
+
+/* 수집된 데이터 섹션 */
+.collected-data-section {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 24px;
+}
+
+.collected-data-section > h2 {
+  font-size: 20px;
+  margin-bottom: 20px;
+  color: #333;
+}
+
+/* 소스 탭 */
+.source-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid #e0e0e0;
+  overflow-x: auto;
+}
+
+.source-tab {
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 14px;
+  color: #666;
+  white-space: nowrap;
+  transition: all 0.2s;
+  position: relative;
+  margin-bottom: -2px;
+}
+
+.source-tab:hover {
+  color: #3182ce;
+}
+
+.source-tab.active {
+  color: #3182ce;
+  border-bottom-color: #3182ce;
+  font-weight: bold;
+}
+
+.tab-count {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 6px;
+  background: #3182ce;
+  color: white;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: normal;
+}
+
+.source-tab.active .tab-count {
+  background: #2c5aa0;
+}
+
+/* 데이터 리스트 */
+.data-list {
+  min-height: 200px;
+}
+
+.data-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: #999;
+  font-size: 14px;
+}
+
+/* 데이터 메타 정보 */
+.data-source {
+  font-weight: bold;
+  color: #3182ce;
+}
+
+.data-time {
+  color: #999;
+}
+
+/* 이미지 데이터 */
+.image-data-section h3 {
+  font-size: 16px;
+  margin-bottom: 12px;
+  color: #333;
+}
+
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.image-item {
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.image-item:hover {
+  transform: scale(1.02);
+}
+
+.image-item img {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.image-meta {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #666;
+}
+
+/* 이미지 모달 */
+.image-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.image-modal-content {
+  position: relative;
+  max-width: 90%;
+  max-height: 90%;
+}
+
+.image-modal-content img {
+  max-width: 100%;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.image-modal-close {
+  position: absolute;
+  top: -40px;
+  right: 0;
+  width: 36px;
+  height: 36px;
+  background: white;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+  color: #333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-modal-close:hover {
+  background: #f0f0f0;
+}
+
+/* 다크 모드 지원 */
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #1a202c;
+    color: #e2e8f0;
+  }
+
+  .detail-header,
+  .analysis-card,
+  .collected-data-section {
+    background: #2d3748;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .analysis-card h2,
+  .collected-data-section > h2,
+  .analysis-section h3,
+  .image-data-section h3 {
+    color: #e2e8f0;
+  }
+
+  .back-button {
+    background: #4a5568;
+    color: #e2e8f0;
+  }
+
+  .back-button:hover {
+    background: #718096;
+  }
+
+  .runway-info,
+  .review-summary-text {
+    background: #4a5568;
+    color: #e2e8f0;
+  }
+
+  .runway-reasoning {
+    color: #e2e8f0;
+  }
+
+  .source-tabs {
+    border-bottom-color: #4a5568;
+  }
+
+  .source-tab {
+    color: #a0aec0;
+  }
+
+  .source-tab:hover {
+    color: #63b3ed;
+  }
+
+  .source-tab.active {
+    color: #63b3ed;
+    border-bottom-color: #63b3ed;
+  }
+
+  .data-source {
+    color: #63b3ed;
+  }
+
+  .review-positive {
+    background: #2f4538;
+    border-left-color: #48bb78;
+  }
+
+  .review-negative {
+    background: #4a3030;
+    border-left-color: #fc8181;
+  }
+
+  .image-modal-close {
+    background: #2d3748;
+    color: #e2e8f0;
+  }
+
+  .image-modal-close:hover {
+    background: #4a5568;
+  }
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+  .detail-header {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .header-left,
+  .header-right {
+    width: 100%;
+  }
+
+  .header-center {
+    width: 100%;
+  }
+
+  .company-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .company-meta span {
+    margin: 0;
+  }
+
+  .review-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .image-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+
+  .source-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+}
