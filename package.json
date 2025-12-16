@@ -5,7 +5,9 @@
   "scripts": {
     "build": "bun run --filter './extensions/*' build",
     "build:wanted": "bun run --cwd extensions/wanted-helper build",
-    "dev:wanted": "bun run --cwd extensions/wanted-helper dev"
+    "dev:wanted": "bun run --cwd extensions/wanted-helper dev",
+    "build:ai-analyzer": "bun run --cwd extensions/ai-company-analyzer build",
+    "dev:ai-analyzer": "bun run --cwd extensions/ai-company-analyzer dev"
   },
   "devDependencies": {
     "@types/chrome": "^0.1.12",
