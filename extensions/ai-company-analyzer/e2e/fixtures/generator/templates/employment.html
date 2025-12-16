@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>고용현황</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: #fff;
+      padding: 24px;
+      color: #333;
+    }
+    .header {
+      margin-bottom: 8px;
+    }
+    .title {
+      font-size: 18px;
+      font-weight: 700;
+      text-decoration: underline;
+      color: #333;
+    }
+    .update-date {
+      font-size: 12px;
+      color: #999;
+      margin-top: 4px;
+    }
+    .stats-row {
+      display: flex;
+      gap: 40px;
+      margin: 20px 0;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #eee;
+    }
+    .stat-item {
+      text-align: left;
+    }
+    .stat-label {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 4px;
+    }
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+    }
+    .stat-change {
+      font-size: 14px;
+      margin-left: 4px;
+    }
+    .stat-change.up {
+      color: #e53935;
+    }
+    .stat-change.down {
+      color: #1976d2;
+    }
+    .chart-container {
+      margin-top: 20px;
+      height: 300px;
+      position: relative;
+    }
+    .chart {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      height: 250px;
+      padding: 0 10px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .chart-bar-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .bars {
+      display: flex;
+      gap: 2px;
+      align-items: flex-end;
+    }
+    .bar {
+      width: 12px;
+      border-radius: 2px 2px 0 0;
+    }
+    .bar.hire {
+      background: #00c896;
+    }
+    .bar.leave {
+      background: #d0d0d0;
+    }
+    .line-point {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #fff;
+      border: 2px solid #5b7fff;
+      position: absolute;
+      transform: translate(-50%, 50%);
+    }
+    .chart-label {
+      font-size: 11px;
+      color: #999;
+      margin-top: 8px;
+    }
+    .y-axis {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 250px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #999;
+    }
+    .legend {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-top: 20px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: #666;
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .legend-dot.total {
+      background: #fff;
+      border: 2px solid #5b7fff;
+    }
+    .legend-bar {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+    }
+    .legend-bar.hire {
+      background: #00c896;
+    }
+    .legend-bar.leave {
+      background: #d0d0d0;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1 class="title">고용현황</h1>
+    <div class="update-date">업데이트 {{updateDate}}</div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-item">
+      <div class="stat-label">{{month}}월 전체 인원수</div>
+      <div class="stat-value">
+        {{totalEmployees}}명
+        <span class="stat-change {{changeDirection}}">{{changePercent}}</span>
+      </div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">{{month}}월 입사자 수</div>
+      <div class="stat-value">{{hires}}명</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">{{month}}월 퇴사자 수</div>
+      <div class="stat-value">{{departures}}명</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">연간 퇴사율</div>
+      <div class="stat-value">{{turnoverRate}}</div>
+    </div>
+  </div>
+
+  <div class="chart-container">
+    <div class="y-axis">
+      <span>{{yAxisMax}}</span>
+      <span>{{yAxisMid}}</span>
+      <span>0</span>
+    </div>
+    <div class="chart" id="chart">
+      <!-- 차트 바들이 JavaScript로 동적 생성됨 -->
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-dot total"></div>
+      <span>전체 인원수</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-bar hire"></div>
+      <span>입사자</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-bar leave"></div>
+      <span>퇴사자</span>
+    </div>
+  </div>
+</body>
+</html>
