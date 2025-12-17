@@ -1,0 +1,47 @@
+# extraction.yaml
+#
+# 텍스트 추출 프롬프트
+# JSON 형식 제거, 단순 텍스트 추출로 변경
+#
+# 변경 이력:
+# - v2.0 (2025-01): JSON 제거, 단순 텍스트 형식으로 전환
+# - v1.0 (2024-12): 초기 버전 (JSON 형식, 중국어 출력 문제)
+
+text_extraction:
+  version: "2.0"
+  description: "이미지에서 모든 텍스트 추출 (JSON 없음)"
+  model: "qwen2-vl"
+  tags:
+    - extraction
+    - ocr
+    - text
+  template: |
+    Extract ALL visible text from this image.
+    Output only the raw text exactly as shown.
+    Do NOT output:
+    - JSON or any structured format
+    - Chinese characters
+    - Repeated text or patterns
+
+    Text:
+
+# 카테고리별 추가 지시 (선택적 사용)
+category_hints:
+  balance_sheet: "Focus on: assets, liabilities, equity figures"
+  income_statement: "Focus on: revenue, profit, expense figures"
+  cash_flow: "Focus on: operating, investing, financing cash flows"
+  financial_ratio: "Focus on: ROE, ROA, debt ratio percentages"
+  revenue_trend: "Focus on: yearly revenue amounts, growth rates"
+  employee_trend: "Focus on: employee counts by year"
+  review_positive: "Focus on: positive feedback, praise"
+  review_negative: "Focus on: concerns, complaints"
+  review_mixed: "Focus on: both pros and cons"
+  rating_summary: "Focus on: rating scores, averages"
+  bar_chart: "Focus on: bar labels and values"
+  line_chart: "Focus on: data points and trends"
+  pie_chart: "Focus on: segment labels and percentages"
+  table_data: "Focus on: all table cells and headers"
+  company_overview: "Focus on: company name, industry, size"
+  team_info: "Focus on: team size, roles"
+  benefits_info: "Focus on: benefit items listed"
+  tech_stack: "Focus on: technology names"

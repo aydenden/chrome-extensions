@@ -1,11 +1,27 @@
 /**
- * 통합 추출 큐
- * 2단계 파이프라인: 분류 → 텍스트 추출
+ * 통합 추출 큐 (v5.0)
+ * 2단계 파이프라인: Donut OCR → 텍스트 LM 분류/분석
+ *
+ * 변경 이력:
+ * - v5.0: Tesseract.js → Donut OCR로 교체 (Service Worker 호환)
+ * - v4.0: VLM → Tesseract.js로 OCR 엔진 교체 (안정성/속도 개선)
+ * - v3.0: VLM은 OCR만, 분류/분석은 텍스트 LM으로 분리
+ * - v2.0: JSON 제거, 단순 텍스트 추출
+ * - v1.0: VLM으로 분류+추출 동시 수행
  */
 
-import { classifyImage } from './classifier';
-import { initEngine, isEngineReady, analyzeImage } from './smolvlm-engine';
-import { buildExtractionPrompt } from '@/lib/prompts/extraction';
+import { initDonut, isDonutReady, recognizeText } from './donut-engine';
+import { initTextLLM, isTextLLMReady, generateText } from './text-llm-engine';
+import { parseExtractedText, type ParsedNumber } from '@/lib/prompts/extraction';
+import {
+  CLASSIFY_SYSTEM,
+  ANALYZE_SYSTEM,
+  buildClassifyPrompt,
+  buildAnalyzePrompt,
+  parseCategory,
+  removeThinkingTags,
+} from '@/lib/prompts/text-analysis';
+import type { ExtractedNumber, ImageSubCategory } from '@/types/storage';
 import {
   getImageBlob,
   getExtractedData,
@@ -20,8 +36,9 @@ import type { DataType, ExtractionStatus, ExtractedMetadata } from '@/types/stor
 interface ExtractionTask {
   extractedDataId: string;
   siteType: DataType;
-  currentPhase: 'classify' | 'extract';
+  currentPhase: 'ocr' | 'analyze';
   retryCount: number;
+  rawText?: string; // OCR 결과 (단계 간 전달용)
 }
 
 // 설정
@@ -31,36 +48,22 @@ const PROCESSING_DELAY = 1000; // 작업 간 딜레이
 const MAX_EXTRACTION_RETRIES = 2; // 추출 실패 시 재시도 횟수
 
 /**
- * VLM 응답 유효성 검사
- * 중국어 반복, 무의미한 출력 등을 감지
+ * OCR 응답 유효성 검사 (v5.0)
+ * Donut OCR 결과의 유효성 검사
  */
-function isValidVLMResponse(response: string): { valid: boolean; reason?: string } {
-  if (!response || response.length < 10) {
+function isValidOCRResponse(response: string): { valid: boolean; reason?: string } {
+  if (!response || response.length < 5) {
     return { valid: false, reason: '응답이 너무 짧음' };
   }
 
-  // 1. 중국어/한자 반복 패턴 감지 (현재现在 등)
-  const chinesePattern = /[\u4e00-\u9fff]{2,}/g;
-  const chineseMatches = response.match(chinesePattern) || [];
-  const totalChineseChars = chineseMatches.join('').length;
-
-  if (totalChineseChars > response.length * 0.3 && !response.includes('{')) {
-    return { valid: false, reason: '중국어 반복 출력 감지' };
-  }
-
-  // 2. 같은 문자/단어 반복 패턴 (20회 이상)
+  // 1. 같은 문자 반복 패턴 (20회 이상)
   if (/(.)\1{20,}/.test(response)) {
     return { valid: false, reason: '문자 반복 감지' };
   }
 
-  // 3. 같은 단어 반복 패턴 (예: "现在现在现在")
+  // 2. 같은 단어 반복 패턴
   if (/(.{2,})\1{10,}/.test(response)) {
     return { valid: false, reason: '단어 반복 감지' };
-  }
-
-  // 4. JSON 구조가 전혀 없는 경우
-  if (!response.includes('{') && !response.includes('rawText') && !response.includes('summary')) {
-    return { valid: false, reason: 'JSON 구조 없음' };
   }
 
   return { valid: true };
@@ -91,7 +94,7 @@ class ExtractionQueue {
     this.queue.push({
       extractedDataId,
       siteType,
-      currentPhase: 'classify',
+      currentPhase: 'ocr', // v3.0: 'classify' → 'ocr'
       retryCount: 0,
     });
 
@@ -124,15 +127,16 @@ class ExtractionQueue {
     );
 
     try {
-      // 1단계: 분류
-      if (task.currentPhase === 'classify') {
-        await this.runClassification(task);
-        task.currentPhase = 'extract';
+      // 1단계: VLM OCR (이미지 → 텍스트)
+      if (task.currentPhase === 'ocr') {
+        const rawText = await this.runOCR(task);
+        task.rawText = rawText;
+        task.currentPhase = 'analyze';
       }
 
-      // 2단계: 텍스트 추출
-      if (task.currentPhase === 'extract') {
-        await this.runTextExtraction(task);
+      // 2단계: 텍스트 LM 분류/분석
+      if (task.currentPhase === 'analyze') {
+        await this.runTextAnalysis(task);
       }
 
       // 완료
@@ -183,11 +187,12 @@ class ExtractionQueue {
   }
 
   /**
-   * 1단계: 이미지 분류
+   * 1단계: Donut OCR (이미지 → 텍스트)
+   * v5.0: Tesseract.js → Donut으로 교체 (Service Worker 호환)
    */
-  private async runClassification(task: ExtractionTask): Promise<void> {
-    console.log('[ExtractionQueue] 분류 시작:', task.extractedDataId);
-    await updateExtractionStatus(task.extractedDataId, 'classifying');
+  private async runOCR(task: ExtractionTask): Promise<string> {
+    console.log('[ExtractionQueue] OCR 시작:', task.extractedDataId);
+    await updateExtractionStatus(task.extractedDataId, 'extracting_text');
 
     // 이미지 Blob 가져오기
     const blob = await getImageBlob(task.extractedDataId);
@@ -195,26 +200,52 @@ class ExtractionQueue {
       throw new Error('이미지 Blob을 찾을 수 없습니다.');
     }
 
-    // Vision 모델 준비
-    if (!isEngineReady()) {
-      console.log('[ExtractionQueue] Vision 모델 로딩...');
-      await initEngine();
+    // Donut 준비
+    if (!isDonutReady()) {
+      console.log('[ExtractionQueue] Donut OCR 로딩...');
+      await initDonut();
     }
 
-    // 분류 수행
-    const category = await classifyImage(blob, task.siteType);
-    console.log('[ExtractionQueue] 분류 완료:', task.extractedDataId, '->', category);
+    // OCR 수행
+    let rawText = '';
+    let ocrAttempt = 0;
 
-    // DB 업데이트
-    await updateExtractedDataCategory(task.extractedDataId, category);
+    while (ocrAttempt < MAX_EXTRACTION_RETRIES) {
+      ocrAttempt++;
+      console.log(`[ExtractionQueue] OCR 시도 ${ocrAttempt}/${MAX_EXTRACTION_RETRIES}`);
+
+      rawText = await recognizeText(blob);
+
+      // 응답 유효성 검사
+      const validation = isValidOCRResponse(rawText);
+      if (validation.valid) {
+        break;
+      }
+
+      console.warn(`[ExtractionQueue] OCR 유효하지 않은 응답 (${validation.reason}):`, rawText.slice(0, 100));
+
+      if (ocrAttempt < MAX_EXTRACTION_RETRIES) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+
+    // 최종 검사
+    const finalValidation = isValidOCRResponse(rawText);
+    if (!finalValidation.valid) {
+      throw new Error(`OCR 실패: ${finalValidation.reason}`);
+    }
+
+    console.log('[ExtractionQueue] OCR 완료:', rawText.slice(0, 100));
+    return rawText;
   }
 
   /**
-   * 2단계: 텍스트 추출
+   * 2단계: 텍스트 LM 분류/분석
+   * v3.0: OCR 결과를 텍스트 LM으로 분류하고 분석
    */
-  private async runTextExtraction(task: ExtractionTask): Promise<void> {
-    console.log('[ExtractionQueue] 텍스트 추출 시작:', task.extractedDataId);
-    await updateExtractionStatus(task.extractedDataId, 'extracting_text');
+  private async runTextAnalysis(task: ExtractionTask): Promise<void> {
+    console.log('[ExtractionQueue] 텍스트 분석 시작:', task.extractedDataId);
+    await updateExtractionStatus(task.extractedDataId, 'classifying');
 
     // 데이터 조회
     const data = await getExtractedData(task.extractedDataId);
@@ -222,74 +253,85 @@ class ExtractionQueue {
       throw new Error('추출 데이터를 찾을 수 없습니다.');
     }
 
-    // 이미지 Blob 가져오기
-    const blob = await getImageBlob(task.extractedDataId);
-    if (!blob) {
-      throw new Error('이미지 Blob을 찾을 수 없습니다.');
+    const rawText = task.rawText;
+    if (!rawText || rawText.length < 5) {
+      throw new Error('OCR 결과가 없습니다.');
     }
 
-    // Vision 모델 준비
-    if (!isEngineReady()) {
-      console.log('[ExtractionQueue] Vision 모델 로딩...');
-      await initEngine();
-    }
+    // 텍스트 LM 준비 (선택적)
+    let category: ImageSubCategory = 'unknown';
+    let summary = '';
 
-    // 카테고리별 프롬프트로 텍스트 추출
-    const category = data.subCategory || 'unknown';
-    const prompt = buildExtractionPrompt(category, task.siteType);
-
-    // 추출 시도 (유효성 검사 포함)
-    let response = '';
-    let extractionAttempt = 0;
-    let lastValidationError = '';
-
-    while (extractionAttempt < MAX_EXTRACTION_RETRIES) {
-      extractionAttempt++;
-      console.log(`[ExtractionQueue] 추출 시도 ${extractionAttempt}/${MAX_EXTRACTION_RETRIES}:`, category);
-
-      response = await analyzeImage(blob, prompt);
-
-      // 응답 유효성 검사
-      const validation = isValidVLMResponse(response);
-      if (validation.valid) {
-        break; // 유효한 응답
-      }
-
-      lastValidationError = validation.reason || '알 수 없는 오류';
-      console.warn(`[ExtractionQueue] 유효하지 않은 응답 (${lastValidationError}):`, response.slice(0, 100));
-
-      // 마지막 시도가 아니면 잠시 대기 후 재시도
-      if (extractionAttempt < MAX_EXTRACTION_RETRIES) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+    if (!isTextLLMReady()) {
+      console.log('[ExtractionQueue] 텍스트 LM 로딩...');
+      try {
+        await initTextLLM();
+      } catch (error) {
+        console.warn('[ExtractionQueue] 텍스트 LM 로딩 실패, 분류/분석 건너뜀:', error);
       }
     }
 
-    // 최종 응답 검사
-    const finalValidation = isValidVLMResponse(response);
-    if (!finalValidation.valid) {
-      console.warn(`[ExtractionQueue] 모든 추출 시도 실패 (${lastValidationError}), 기본값으로 저장`);
-      // 기본값으로 저장하고 계속 진행 (임베딩 단계에서 빈 텍스트 처리)
-      await saveExtractedText(
-        task.extractedDataId,
-        data.companyId,
-        category,
-        `[추출 실패: ${lastValidationError}]`,
-        { summary: '', keyPoints: [] }
-      );
-      return;
+    // 텍스트 LM이 준비되면 분류 및 분석 수행
+    if (isTextLLMReady()) {
+      // 분류
+      try {
+        console.log('[ExtractionQueue] 분류 중...');
+        const classifyResult = await generateText(
+          CLASSIFY_SYSTEM,
+          buildClassifyPrompt(rawText),
+          16  // 카테고리명만 출력
+        );
+        category = parseCategory(classifyResult);
+        console.log('[ExtractionQueue] 분류 결과:', category);
+      } catch (error) {
+        console.warn('[ExtractionQueue] 분류 실패:', error);
+      }
+
+      // 분석 (분류가 성공한 경우)
+      if (category !== 'unknown') {
+        try {
+          console.log('[ExtractionQueue] 분석 중...');
+          summary = await generateText(
+            ANALYZE_SYSTEM,
+            buildAnalyzePrompt(rawText, category),
+            256
+          );
+          console.log('[ExtractionQueue] 분석 결과:', removeThinkingTags(summary).slice(0, 100));
+        } catch (error) {
+          console.warn('[ExtractionQueue] 분석 실패:', error);
+        }
+      }
     }
 
-    // JSON 응답 파싱
-    const parsed = parseExtractionResponse(response);
-    console.log('[ExtractionQueue] 추출 결과:', parsed.summary?.slice(0, 50));
+    // DB 업데이트: 카테고리
+    await updateExtractedDataCategory(task.extractedDataId, category);
 
-    // DB 저장
+    // 텍스트 후처리: 정규표현식으로 숫자/연도/퍼센트 추출
+    const structured = parseExtractedText(rawText);
+    console.log('[ExtractionQueue] 파싱된 숫자:', structured.numbers.length, '개');
+    console.log('[ExtractionQueue] 파싱된 연도:', structured.years);
+
+    // ParsedNumber → ExtractedNumber 변환
+    const convertedNumbers: ExtractedNumber[] = structured.numbers.map((n: ParsedNumber) => ({
+      label: n.context?.slice(0, 20) || '',
+      value: n.value,
+      unit: n.unit,
+    }));
+
+    // 분석 결과에서 <think> 태그 제거 (Qwen3 0.6B는 /no_think가 작동하지 않음)
+    const cleanedSummary = summary ? removeThinkingTags(summary) : rawText.slice(0, 200);
+
+    // DB 저장 (rawText + 구조화된 메타데이터)
     await saveExtractedText(
       task.extractedDataId,
       data.companyId,
       category,
-      parsed.rawText || response, // 파싱 실패 시 원본 사용
-      parsed
+      rawText,
+      {
+        summary: cleanedSummary,
+        keyPoints: convertedNumbers.slice(0, 5).map(n => `${n.value}${n.unit}`),
+        numbers: convertedNumbers,
+      }
     );
   }
 

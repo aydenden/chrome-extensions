@@ -1,15 +1,17 @@
 // Service Worker 진입점
 import { registerCaptureHandler } from './capture-handler';
 import {
-  initEngine,
-  getEngineStatus,
-  analyzeFinancials,
-  analyzeReviews,
-  analyzeGraphImage,
-  analyzeImage,
-  calculateTotalScore,
-  disposeEngine,
-} from './smolvlm-engine';
+  initDonut,
+  getDonutStatus,
+  recognizeText,
+  disposeDonut,
+} from './donut-engine';
+import {
+  initTextLLM,
+  getTextLLMStatus,
+  generateText,
+  disposeTextLLM,
+} from './text-llm-engine';
 import {
   getAllCompanies,
   createCompany,
@@ -58,21 +60,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ status: 'pong' });
       break;
 
-    // ============ SmolVLM 엔진 관련 메시지 ============
+    // ============ OCR 엔진 관련 메시지 (v5.0: Donut OCR) ============
     case 'INIT_SMOLVLM':
-      // SmolVLM 엔진 초기화
+    case 'INIT_OCR':
+      // OCR 엔진 초기화 (Donut + Text LLM)
       (async () => {
         try {
-          await initEngine((progress) => {
-            // 진행률 브로드캐스트
+          // Donut 초기화
+          await initDonut((progress) => {
             chrome.runtime.sendMessage({
               type: 'SMOLVLM_PROGRESS',
               data: progress,
-            }).catch(() => {
-              // 리스너가 없는 경우 무시
-            });
+            }).catch(() => {});
           });
-          sendResponse({ success: true, status: getEngineStatus() });
+
+          // Text LLM 초기화
+          await initTextLLM((progress) => {
+            chrome.runtime.sendMessage({
+              type: 'TEXTLLM_PROGRESS',
+              data: progress,
+            }).catch(() => {});
+          });
+
+          sendResponse({
+            success: true,
+            status: {
+              donut: getDonutStatus(),
+              textLLM: getTextLLMStatus(),
+            },
+          });
         } catch (error) {
           sendResponse({
             success: false,
@@ -80,63 +96,36 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           });
         }
       })();
-      return true; // 비동기 응답
+      return true;
 
     case 'GET_ENGINE_STATUS':
       // 엔진 상태 조회
-      sendResponse({ success: true, status: getEngineStatus() });
+      sendResponse({
+        success: true,
+        status: {
+          donut: getDonutStatus(),
+          textLLM: getTextLLMStatus(),
+          // 호환성: isReady는 둘 다 준비되었을 때
+          isReady: getDonutStatus().isReady && getTextLLMStatus().isReady,
+          isLoading: getDonutStatus().isLoading || getTextLLMStatus().isLoading,
+          loadProgress: (getDonutStatus().loadProgress + getTextLLMStatus().loadProgress) / 2,
+        },
+      });
       break;
 
     case 'ANALYZE_FINANCIALS':
-      // 재무 이미지 분석
-      (async () => {
-        try {
-          const { imageDataUrl } = message.data;
-          const response = await fetch(imageDataUrl);
-          const blob = await response.blob();
-          const result = await analyzeFinancials(blob);
-          sendResponse({ success: true, data: result });
-        } catch (error) {
-          sendResponse({
-            success: false,
-            error: error instanceof Error ? error.message : '알 수 없는 오류',
-          });
-        }
-      })();
-      return true; // 비동기 응답
-
     case 'ANALYZE_REVIEWS':
-      // 리뷰 이미지 분석
-      (async () => {
-        try {
-          const { imageDataUrl } = message.data;
-          const response = await fetch(imageDataUrl);
-          const blob = await response.blob();
-          const result = await analyzeReviews(blob);
-          sendResponse({ success: true, data: result });
-        } catch (error) {
-          sendResponse({
-            success: false,
-            error: error instanceof Error ? error.message : '알 수 없는 오류',
-          });
-        }
-      })();
-      return true; // 비동기 응답
-
     case 'ANALYZE_GRAPH_IMAGE':
-      // 그래프 이미지 분석
+    case 'ANALYZE_IMAGE':
+      // v4.0: 직접 분석 대신 extraction_queue 사용 권장
+      // 레거시 호환성을 위해 OCR만 수행
       (async () => {
         try {
           const { imageDataUrl } = message.data;
-          console.log('[분석] imageDataUrl:', imageDataUrl);
-
           const response = await fetch(imageDataUrl);
           const blob = await response.blob();
-          console.log('[분석] blob 크기:', blob.size, 'bytes, 타입:', blob.type);
-
-          const result = await analyzeGraphImage(blob);
-          console.log('[분석] 분석 결과:', result);
-          sendResponse({ success: true, data: result });
+          const text = await recognizeText(blob);
+          sendResponse({ success: true, data: { result: text, rawText: text } });
         } catch (error) {
           sendResponse({
             success: false,
@@ -144,31 +133,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           });
         }
       })();
-      return true; // 비동기 응답
-
-    case 'ANALYZE_IMAGE':
-      // 일반 이미지 분석 (커스텀 프롬프트)
-      (async () => {
-        try {
-          const { imageDataUrl, prompt } = message.data;
-          const response = await fetch(imageDataUrl);
-          const blob = await response.blob();
-          const result = await analyzeImage(blob, prompt);
-          sendResponse({ success: true, data: { result } });
-        } catch (error) {
-          sendResponse({
-            success: false,
-            error: error instanceof Error ? error.message : '알 수 없는 오류',
-          });
-        }
-      })();
-      return true; // 비동기 응답
+      return true;
 
     case 'CALCULATE_TOTAL_SCORE':
-      // 종합 점수 계산
+      // 종합 점수 계산 (단순 가중 평균)
       try {
         const { financialScore, reviewScore, weights } = message.data;
-        const totalScore = calculateTotalScore(financialScore, reviewScore, weights);
+        const w = weights || { financial: 0.6, review: 0.4 };
+        const totalScore = Math.round(
+          (financialScore || 3) * w.financial + (reviewScore || 3) * w.review
+        );
         sendResponse({ success: true, data: { totalScore } });
       } catch (error) {
         sendResponse({
@@ -182,7 +156,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // 엔진 정리
       (async () => {
         try {
-          await disposeEngine();
+          await disposeDonut();
+          await disposeTextLLM();
           sendResponse({ success: true });
         } catch (error) {
           sendResponse({
@@ -191,7 +166,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           });
         }
       })();
-      return true; // 비동기 응답
+      return true;
 
     // ============ Storage 관련 메시지 ============
     case 'GET_COMPANIES':
@@ -320,7 +295,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
 
     case 'ANALYZE_BY_CATEGORY':
-      // 카테고리별 프롬프트로 분석
+      // 카테고리별 분석 (v4.0: OCR + Text LLM)
       (async () => {
         try {
           const { extractedDataId } = message.data;
@@ -341,46 +316,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             throw new Error('이미지를 찾을 수 없습니다.');
           }
 
-          // 카테고리별 프롬프트로 분석
-          const prompt = buildAnalysisPrompt(subCategory);
-          const result = await analyzeImage(blob, prompt);
+          // 1. Donut OCR로 텍스트 추출
+          const ocrText = await recognizeText(blob);
 
-          // JSON 파싱 시도 (후처리 강화)
+          // 2. Text LLM으로 분석
+          const prompt = buildAnalysisPrompt(subCategory);
+          const result = await generateText(
+            'You are a document analyst. Analyze the text and respond in JSON format with summary, keyPoints, and score (1-5).',
+            `${prompt}\n\n텍스트:\n${ocrText}`,
+            256
+          );
+
+          // JSON 파싱 (Qwen3 <think> 태그 제거)
           let parsedResult;
           try {
-            // 1. 코드블록 제거
-            let cleaned = result.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
-
-            // 2. JSON 객체 추출
+            let cleaned = result.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+            cleaned = cleaned.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
             const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
-              cleaned = jsonMatch[0];
+              parsedResult = JSON.parse(jsonMatch[0]);
+            } else {
+              throw new Error('JSON을 찾을 수 없음');
             }
-
-            // 3. 불완전한 JSON 복구 시도
-            const openBraces = (cleaned.match(/{/g) || []).length;
-            const closeBraces = (cleaned.match(/}/g) || []).length;
-            if (openBraces > closeBraces) {
-              cleaned += '}'.repeat(openBraces - closeBraces);
-            }
-
-            // 4. 배열 괄호 복구
-            const openBrackets = (cleaned.match(/\[/g) || []).length;
-            const closeBrackets = (cleaned.match(/\]/g) || []).length;
-            if (openBrackets > closeBrackets) {
-              // 닫히지 않은 배열이 있으면 끝에 추가
-              const lastBrace = cleaned.lastIndexOf('}');
-              if (lastBrace > 0) {
-                cleaned = cleaned.substring(0, lastBrace) + ']'.repeat(openBrackets - closeBrackets) + cleaned.substring(lastBrace);
-              }
-            }
-
-            parsedResult = JSON.parse(cleaned);
           } catch (parseError) {
             console.warn('JSON 파싱 실패, rawResponse로 대체:', parseError);
-            // 기본 구조로 대체
             parsedResult = {
-              summary: result.substring(0, 200) || '분석 결과를 파싱할 수 없습니다.',
+              summary: result.replace(/<think>[\s\S]*?<\/think>/g, '').trim().substring(0, 200) || '분석 결과를 파싱할 수 없습니다.',
               keyPoints: [],
               score: 3,
               rawResponse: result,
@@ -392,6 +353,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             data: {
               category: subCategory,
               analysis: parsedResult,
+              ocrText: ocrText.slice(0, 500),
             },
           });
         } catch (error) {
@@ -463,7 +425,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
 
     case 'RAG_ANALYZE':
-      // RAG 기반 종합 분석
+      // RAG 기반 종합 분석 (v4.0: Text LLM 사용)
       (async () => {
         try {
           const { companyId } = message.data;
@@ -479,15 +441,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           // 분석 프롬프트 생성
           const prompt = buildRAGAnalysisPrompt(context);
 
-          // LLM 분석 (Vision 모델 사용, 이미지 없이 텍스트만)
-          // Note: 실제로는 텍스트 전용 LLM을 사용하는 것이 더 효율적
-          // 여기서는 기존 Vision 모델을 텍스트 분석에도 사용
-          const result = await analyzeImage(new Blob(['']), prompt);
+          // Text LLM 분석
+          const result = await generateText(
+            'You are a company analyst. Analyze the provided data and respond in JSON format.',
+            prompt,
+            512
+          );
 
-          // JSON 파싱
+          // JSON 파싱 (Qwen3 <think> 태그 제거)
           let parsedResult;
           try {
-            const cleaned = result.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+            let cleaned = result.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+            cleaned = cleaned.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
             const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
               parsedResult = JSON.parse(jsonMatch[0]);
@@ -499,7 +464,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               overallScore: 3,
               financialHealth: { score: 3, summary: '분석 결과를 파싱할 수 없습니다.', strengths: [], concerns: [] },
               employeeSentiment: { score: 3, summary: '분석 결과를 파싱할 수 없습니다.', positives: [], negatives: [] },
-              recommendation: result,
+              recommendation: result.replace(/<think>[\s\S]*?<\/think>/g, '').trim(),
             };
           }
 
@@ -524,7 +489,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
 
     case 'RAG_QUERY':
-      // RAG 커스텀 질문
+      // RAG 커스텀 질문 (v4.0: Text LLM 사용)
       (async () => {
         try {
           const { companyId, query } = message.data;
@@ -532,12 +497,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           // 커스텀 프롬프트 생성
           const prompt = await buildCustomQueryPrompt(companyId, query);
 
-          // LLM 응답
-          const result = await analyzeImage(new Blob(['']), prompt);
+          // Text LLM 응답
+          const result = await generateText(
+            'You are a helpful assistant. Answer the question based on the provided context. Respond in Korean.',
+            prompt,
+            256
+          );
+
+          // Qwen3 <think> 태그 제거
+          const cleanedResult = result.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 
           sendResponse({
             success: true,
-            data: { answer: result },
+            data: { answer: cleanedResult },
           });
         } catch (error) {
           sendResponse({

@@ -1,0 +1,70 @@
+# classification.yaml
+#
+# 이미지 분류 프롬프트
+# 이미지 종류를 단일 카테고리로 분류
+
+classification:
+  version: "1.0"
+  description: "이미지 종류 분류"
+  model: "qwen2-vl"
+  tags:
+    - classification
+    - category
+  template: |
+    What type of image is this? Reply with ONE word only.
+
+    Categories:
+    - company_overview (회사정보)
+    - revenue_trend (매출추이)
+    - employee_trend (인원추이)
+    - balance_sheet (재무제표)
+    - review_positive (긍정리뷰)
+    - review_negative (부정리뷰)
+    - review_mixed (복합리뷰)
+    - rating_summary (평점)
+    - bar_chart (막대그래프)
+    - line_chart (라인차트)
+    - table_data (표)
+    - unknown
+
+    Answer:
+
+# 사이트별 힌트 (분류 정확도 향상)
+site_hints:
+  company_info: "Hint: company_overview, table_data"
+  finance_inno: "Hint: revenue_trend, employee_trend, bar_chart"
+  finance_dart: "Hint: balance_sheet, table_data"
+  finance_smes: "Hint: balance_sheet, table_data"
+  review_blind: "Hint: review_positive, review_negative, review_mixed"
+  review_jobplanet: "Hint: review_positive, review_negative, review_mixed"
+
+# 유효한 카테고리 목록
+valid_categories:
+  - balance_sheet
+  - income_statement
+  - cash_flow
+  - financial_ratio
+  - revenue_trend
+  - employee_trend
+  - review_positive
+  - review_negative
+  - review_mixed
+  - rating_summary
+  - bar_chart
+  - line_chart
+  - pie_chart
+  - table_data
+  - company_overview
+  - team_info
+  - benefits_info
+  - tech_stack
+  - unknown
+
+# 사이트별 기본 카테고리 (fallback)
+site_defaults:
+  company_info: "company_overview"
+  finance_inno: "revenue_trend"
+  finance_dart: "income_statement"
+  finance_smes: "balance_sheet"
+  review_blind: "review_mixed"
+  review_jobplanet: "review_mixed"

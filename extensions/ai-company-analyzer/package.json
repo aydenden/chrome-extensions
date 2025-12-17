@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "generate:fixtures": "bun run e2e/fixtures/generator/generate.ts",
     "test:e2e": "bun run generate:fixtures && playwright test",
-    "test:e2e:ui": "bun run generate:fixtures && playwright test --ui"
+    "test:e2e:ui": "bun run generate:fixtures && playwright test --ui",
+    "test:prompts": "promptfoo eval",
+    "test:prompts:view": "promptfoo view"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",
@@ -28,6 +30,7 @@
     "@types/react": "^18.3.16",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
+    "promptfoo": "^0.100.0",
     "typescript": "^5.6.3",
     "vite": "^5.4.11"
   }

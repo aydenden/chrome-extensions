@@ -1,14 +1,16 @@
 /**
- * 이미지 분류기
- * AI를 사용하여 이미지 종류를 자동 분류
+ * 이미지 분류기 v3.0
+ * Donut OCR + Qwen3 Text LLM으로 이미지 분류
  */
 
-import { analyzeImage, isEngineReady, initEngine } from './smolvlm-engine';
+import { initDonut, isDonutReady, recognizeText } from './donut-engine';
+import { initTextLLM, isTextLLMReady, generateText } from './text-llm-engine';
 import {
-  getClassificationPromptWithHint,
-  extractCategoryFromResponse,
-  getFallbackCategory,
-} from '@/lib/prompts';
+  CLASSIFY_SYSTEM,
+  buildClassifyPrompt,
+  parseCategory,
+} from '@/lib/prompts/text-analysis';
+import { getFallbackCategory } from '@/lib/prompts';
 import type { DataType, ImageSubCategory } from '@/types/storage';
 
 /**
@@ -22,28 +24,39 @@ export async function classifyImage(
   siteType?: DataType
 ): Promise<ImageSubCategory> {
   try {
-    // 엔진 준비 확인
-    if (!isEngineReady()) {
-      console.log('[Classifier] 엔진 초기화 중...');
-      await initEngine();
+    // Donut 엔진 준비 확인
+    if (!isDonutReady()) {
+      console.log('[Classifier] Donut 초기화 중...');
+      await initDonut();
     }
 
-    // 사이트 힌트를 포함한 프롬프트 생성
-    const prompt = siteType
-      ? getClassificationPromptWithHint(siteType)
-      : getClassificationPromptWithHint('company_info'); // 기본값
+    // Text LLM 엔진 준비 확인
+    if (!isTextLLMReady()) {
+      console.log('[Classifier] Text LLM 초기화 중...');
+      await initTextLLM();
+    }
 
     console.log('[Classifier] 이미지 분류 시작...', {
       blobSize: imageBlob.size,
       siteType,
     });
 
-    // AI로 분류 수행
-    const response = await analyzeImage(imageBlob, prompt);
-    console.log('[Classifier] AI 응답:', response);
+    // 1단계: Donut OCR로 텍스트 추출
+    const rawText = await recognizeText(imageBlob);
+    console.log('[Classifier] OCR 완료:', rawText.slice(0, 100) + '...');
 
-    // 응답에서 카테고리 추출 (siteType으로 부분 매칭 개선)
-    const category = extractCategoryFromResponse(response, siteType);
+    if (!rawText || rawText.length < 5) {
+      console.warn('[Classifier] OCR 텍스트 부족, fallback 사용');
+      return siteType ? getFallbackCategory(siteType) : 'unknown';
+    }
+
+    // 2단계: Text LLM으로 분류
+    const classifyPrompt = buildClassifyPrompt(rawText);
+    const response = await generateText(CLASSIFY_SYSTEM, classifyPrompt, 32);
+    console.log('[Classifier] LLM 응답:', response);
+
+    // 응답에서 카테고리 추출
+    const category = parseCategory(response);
     console.log('[Classifier] 추출된 카테고리:', category);
 
     return category;
