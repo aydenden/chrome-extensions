@@ -291,3 +291,49 @@
 - **비대칭 그리드**: 8:4 또는 9:3 비율
 - **샤프한 엣지**: border-radius 최소화
 - **뚜렷한 구분선**: 2px solid 테두리
+
+---
+
+## 8. 컴포넌트 스타일
+
+### 8.1 삭제 버튼
+
+이미지 카드 등에서 사용하는 인라인 삭제 버튼.
+
+```css
+.delete-button {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+/* 부모 카드 Hover 시 표시 */
+.image-card:hover .delete-button,
+.card:hover .delete-button {
+  opacity: 1;
+}
+
+/* 삭제 버튼 Hover */
+.delete-button:hover {
+  background: var(--signal-negative);
+}
+```
+
+| 속성 | 값 | 설명 |
+|------|-----|------|
+| 크기 | 24×24px | 터치 타겟 최소 크기 |
+| 배경 | rgba(0,0,0,0.6) | 반투명 다크 |
+| 호버 배경 | --signal-negative | 삭제 의미 강조 |
+| 트랜지션 | 0.2s ease | 부드러운 표시/숨김 |

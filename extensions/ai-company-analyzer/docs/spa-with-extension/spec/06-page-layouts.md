@@ -201,39 +201,7 @@
 └───────────────┘
 ```
 
-**삭제 버튼 스타일:**
-
-```css
-.image-card {
-  position: relative;
-}
-
-.delete-button {
-  position: absolute;
-  top: var(--space-2);
-  right: var(--space-2);
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.6);
-  color: white;
-  border: none;
-  border-radius: 2px;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-.image-card:hover .delete-button {
-  opacity: 1;
-}
-
-.delete-button:hover {
-  background: var(--signal-negative);
-}
-```
+> 삭제 버튼 스타일은 [디자인 시스템](./05-design-system.md#81-삭제-버튼) 참조
 
 **UX 동작:**
 - Hover 시 삭제 버튼 표시 (opacity transition)
