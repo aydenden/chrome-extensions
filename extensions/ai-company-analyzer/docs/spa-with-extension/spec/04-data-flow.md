@@ -94,41 +94,71 @@
 [SPA: 렌더링]
 ```
 
-### 3.2 이미지 분석
+### 3.2 상세 페이지 진입 (이미지 Sync)
+
+상세 페이지 진입 시 이미지를 미리 로드하여 그리드에 표시합니다.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      이미지 Sync 시퀀스 다이어그램                 │
+└─────────────────────────────────────────────────────────────────┘
+
+[User]              [SPA]                [Extension]
+  │                   │                       │
+  │── 상세 페이지 ───>│                       │
+  │                   │                       │
+  │                   │── GET_IMAGES ────────>│
+  │                   │<── ImageMetaDTO[] ────│
+  │                   │                       │
+  │                   │ for each (not cached):│
+  │                   │── GET_IMAGE_DATA ────>│
+  │                   │<── ImageDataDTO ──────│
+  │                   │                       │
+  │                   │── cache locally ──────│
+  │                   │                       │
+  │<── 이미지 그리드 ──│                       │
+```
+
+**캐시 전략:**
+- SPA 로컬 캐시: IndexedDB 또는 Memory
+- 캐시 키: `imageId`
+- 새로고침 시 재요청 (Memory 캐시의 경우)
+
+### 3.3 분석 실행
+
+분석 시작 시 로컬 캐시된 이미지를 사용합니다.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                      분석 시퀀스 다이어그램                        │
 └─────────────────────────────────────────────────────────────────┘
 
-[SPA]                [Extension]              [OCR]              [LLM]
-  │                       │                     │                  │
-  │── GET_IMAGES ────────>│                     │                  │
-  │<── ImageMetaDTO[] ────│                     │                  │
-  │                       │                     │                  │
-  │ for each image:       │                     │                  │
-  │                       │                     │                  │
-  │── GET_IMAGE_DATA ────>│                     │                  │
-  │<── ImageDataDTO ──────│                     │                  │
-  │                       │                     │                  │
-  │── base64ToBlob ──────────────────────────>  │                  │
-  │                       │                     │                  │
-  │── recognize(blob) ───────────────────────>  │                  │
-  │<── rawText ──────────────────────────────── │                  │
-  │                       │                     │                  │
-  │── classify(rawText) ────────────────────────────────────────> │
-  │<── category ──────────────────────────────────────────────────│
-  │                       │                     │                  │
-  │── analyze(rawText, category) ──────────────────────────────> │
-  │<── analysis ──────────────────────────────────────────────────│
-  │                       │                     │                  │
-  │── SAVE_ANALYSIS ─────>│                     │                  │
-  │<── success ───────────│                     │                  │
-  │                       │                     │                  │
-  │ next image...         │                     │                  │
+[User]              [SPA]                [OCR]              [LLM]              [Extension]
+  │                   │                    │                  │                     │
+  │── 분석 시작 ─────>│                    │                  │                     │
+  │                   │                    │                  │                     │
+  │                   │ for each (from cache):                │                     │
+  │                   │                    │                  │                     │
+  │                   │── base64ToBlob ──> │                  │                     │
+  │                   │                    │                  │                     │
+  │                   │── recognize ──────>│                  │                     │
+  │                   │<── rawText ────────│                  │                     │
+  │                   │                    │                  │                     │
+  │                   │── classify ───────────────────────>   │                     │
+  │                   │<── category ──────────────────────────│                     │
+  │                   │                    │                  │                     │
+  │                   │── analyze ────────────────────────>   │                     │
+  │                   │<── analysis ──────────────────────────│                     │
+  │                   │                    │                  │                     │
+  │                   │── SAVE_ANALYSIS ─────────────────────────────────────────> │
+  │                   │<── success ────────────────────────────────────────────────│
+  │                   │                    │                  │                     │
+  │                   │ next image...      │                  │                     │
+  │                   │                    │                  │                     │
+  │<── 완료 ──────────│                    │                  │                     │
 ```
 
-### 3.3 상태 관리
+### 3.4 상태 관리
 
 ```
 [분석 시작]
@@ -449,4 +479,114 @@ if (serverData?.length !== cachedData?.length) {
   // 서버 데이터로 덮어쓰기
   queryClient.setQueryData(['images', companyId], serverData);
 }
+```
+
+## 10. 삭제 플로우
+
+### 10.1 회사 삭제
+
+회사 삭제 시 연결된 모든 이미지와 분석 결과도 함께 삭제됩니다.
+
+```
+[User]              [SPA]                [Extension]
+  │                   │                       │
+  │── 회사 삭제 ─────>│                       │
+  │                   │                       │
+  │                   │── DELETE_COMPANY ────>│
+  │                   │   (companyId)         │
+  │                   │                       │
+  │                   │<── success ───────────│
+  │                   │                       │
+  │                   │── SPA 캐시 삭제 ──────│
+  │                   │   (해당 회사 이미지)  │
+  │                   │                       │
+  │<── 목록 갱신 ─────│                       │
+```
+
+**삭제 범위:**
+
+| 대상 | 삭제 내용 |
+|------|----------|
+| Extension | Company + 연결된 모든 Image + Analysis |
+| SPA 캐시 | 해당 회사의 이미지 데이터 |
+
+**캐시 무효화:**
+
+```typescript
+// 회사 삭제 후
+queryClient.invalidateQueries(['companies']);
+queryClient.removeQueries(['company', companyId]);
+queryClient.removeQueries(['images', companyId]);
+// 해당 회사의 모든 이미지 데이터 캐시 제거
+images.forEach(img => {
+  queryClient.removeQueries(['imageData', img.id]);
+});
+```
+
+### 10.2 이미지 삭제
+
+개별 이미지 삭제 시 해당 이미지와 분석 결과만 삭제됩니다.
+
+```
+[User]              [SPA]                [Extension]
+  │                   │                       │
+  │── 이미지 삭제 ───>│                       │
+  │                   │                       │
+  │                   │── DELETE_IMAGE ──────>│
+  │                   │   (imageId)           │
+  │                   │                       │
+  │                   │<── success ───────────│
+  │                   │                       │
+  │                   │── SPA 캐시 삭제 ──────│
+  │                   │   (해당 이미지)       │
+  │                   │                       │
+  │<── 그리드 갱신 ───│                       │
+```
+
+**삭제 범위:**
+
+| 대상 | 삭제 내용 |
+|------|----------|
+| Extension | Image + Analysis |
+| SPA 캐시 | 해당 이미지 데이터 |
+
+**캐시 무효화:**
+
+```typescript
+// 이미지 삭제 후
+queryClient.invalidateQueries(['images', companyId]);
+queryClient.removeQueries(['imageData', imageId]);
+```
+
+### 10.3 낙관적 삭제
+
+사용자 경험을 위해 삭제 요청 전 UI를 먼저 업데이트합니다.
+
+```typescript
+const deleteImage = useMutation({
+  mutationFn: api.deleteImage,
+
+  onMutate: async ({ imageId, companyId }) => {
+    await queryClient.cancelQueries(['images', companyId]);
+
+    const previousImages = queryClient.getQueryData(['images', companyId]);
+
+    // 낙관적으로 이미지 제거
+    queryClient.setQueryData(['images', companyId], (old: ImageMetaDTO[]) =>
+      old.filter(img => img.id !== imageId)
+    );
+
+    return { previousImages };
+  },
+
+  onError: (err, { companyId }, context) => {
+    // 에러 시 롤백
+    queryClient.setQueryData(['images', companyId], context?.previousImages);
+  },
+
+  onSuccess: (_, { imageId }) => {
+    // 이미지 데이터 캐시 제거
+    queryClient.removeQueries(['imageData', imageId]);
+  },
+});
 ```
