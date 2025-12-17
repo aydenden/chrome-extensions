@@ -67,6 +67,23 @@
 [IndexedDB 저장/업데이트]
 ```
 
+### 2.3 메타데이터 추출
+
+사이트별 메타데이터 추출 범위:
+
+| 사이트 | 추출 필드 | 추출 방법 |
+|--------|----------|----------|
+| 원티드 | industry, employeeCount | DOM 셀렉터 |
+| 잡플래닛 | industry, employeeCount, foundedYear | DOM 셀렉터 |
+| 혁신의숲 | foundedYear, fundingInfo | DOM 셀렉터 |
+| DART | - | PDF 텍스트 추출 |
+| 블라인드 | - | (리뷰만 수집) |
+
+**업데이트 로직:**
+- 같은 회사에 새 이미지 추가 시 metadata merge
+- 더 최신 정보로 덮어쓰기 (updatedAt 비교)
+- null/undefined 값은 기존 값 유지
+
 ## 3. 분석 흐름 상세
 
 ### 3.1 회사 목록 조회
@@ -119,10 +136,30 @@
   │<── 이미지 그리드 ──│                       │
 ```
 
+**이미지 전달 과정:**
+1. Extension: IndexedDB에 `Blob`으로 저장
+2. GET_IMAGE_DATA 요청 시:
+   - `Blob` → `FileReader.readAsDataURL()` → Base64 변환
+3. SPA: Base64 수신 → 표시 또는 OCR 처리
+
 **캐시 전략:**
-- SPA 로컬 캐시: IndexedDB 또는 Memory
+
+캐시 저장소: React Query 메모리 캐시
+
+```typescript
+// 이미지 데이터는 변경되지 않으므로 장기 캐시
+useQuery({
+  queryKey: ['imageData', imageId],
+  staleTime: Infinity,       // 절대 stale 안 됨
+  gcTime: 30 * 60_000,       // 30분 후 GC (메모리 해제)
+});
+```
+
+**캐시 정책:**
 - 캐시 키: `imageId`
-- 새로고침 시 재요청 (Memory 캐시의 경우)
+- 새로고침 시: 캐시 만료, 재요청
+- 용량 제한: 없음 (gcTime으로 자동 정리)
+- 수동 초기화: Settings 페이지의 "캐시 초기화" 버튼
 
 ### 3.3 분석 실행
 
@@ -589,4 +626,80 @@ const deleteImage = useMutation({
     queryClient.removeQueries(['imageData', imageId]);
   },
 });
+```
+
+## 11. AI 엔진 상태 관리
+
+OCR/LLM 엔진 상태는 SPA 내부에서 관리합니다 (Extension API가 아님).
+
+### 11.1 상태 정의
+
+```typescript
+interface AIEngineStatus {
+  ocr: {
+    status: 'idle' | 'loading' | 'ready' | 'error';
+    progress?: number;  // 0-100
+    error?: string;
+  };
+  llm: {
+    status: 'idle' | 'loading' | 'ready' | 'error';
+    progress?: number;  // 0-100
+    model?: string;     // 'Qwen3-0.6B'
+    error?: string;
+  };
+  webgpu: {
+    supported: boolean;
+    adapter?: string;   // GPU 이름
+  };
+}
+```
+
+### 11.2 Context Provider
+
+```typescript
+// SPA의 AIEngineContext에서 전역 상태 관리
+const AIEngineContext = createContext<{
+  status: AIEngineStatus;
+  initOCR: () => Promise<void>;
+  initLLM: () => Promise<void>;
+}>(null);
+
+// Settings 페이지에서 사용
+function SettingsPage() {
+  const { status } = useAIEngine();
+
+  return (
+    <div>
+      <StatusIndicator
+        label="OCR (Tesseract.js)"
+        status={status.ocr.status}
+        progress={status.ocr.progress}
+      />
+      <StatusIndicator
+        label={`LLM (${status.llm.model || 'Qwen3'})`}
+        status={status.llm.status}
+        progress={status.llm.progress}
+      />
+      <StatusIndicator
+        label="WebGPU"
+        status={status.webgpu.supported ? 'ready' : 'error'}
+      />
+    </div>
+  );
+}
+```
+
+### 11.3 초기화 흐름
+
+```
+[SPA 시작]
+    │
+    ├─> [WebGPU 지원 확인]
+    │       navigator.gpu?.requestAdapter()
+    │
+    ├─> [OCR 워커 초기화] (백그라운드)
+    │       Tesseract.createWorker() → progress → ready
+    │
+    └─> [LLM 엔진 초기화] (백그라운드)
+            transformers.pipeline() → progress → ready
 ```

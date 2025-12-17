@@ -55,6 +55,8 @@ enum ErrorCode {
   payload?: {
     siteType?: DataType;  // 필터 (선택)
     sortBy?: 'name' | 'createdAt' | 'updatedAt';
+    // 'createdAt': 수집일 기준 (UI의 "최신순")
+    // 'updatedAt': 마지막 수정일 기준
     sortOrder?: 'asc' | 'desc';
   }
 }
@@ -71,7 +73,8 @@ interface CompanyDTO {
   id: string;
   name: string;
   url: string;
-  siteType: DataType;
+  siteType: DataType;          // 회사의 주요 소스
+  dataSources: DataType[];     // 이미지들의 소스 집계 (UI 배지용)
   imageCount: number;
   analyzedCount: number;
   createdAt: string;  // ISO 8601
@@ -133,6 +136,14 @@ interface CompanyDetailDTO extends CompanyDTO {
     industry?: string;
     employeeCount?: string;
     foundedYear?: string;
+  };
+  // AI 분석 결과 (모든 이미지 분석 완료 후 집계)
+  analysis?: {
+    score?: number;           // 종합 점수 (0-100)
+    runway?: string;          // "18개월" 형태
+    riskLevel?: 'low' | 'medium' | 'high';
+    summary?: string;         // AI 요약
+    analyzedAt?: string;      // 마지막 분석 일시
   };
 }
 ```
@@ -420,7 +431,15 @@ interface ImageDataDTO {
 ## 4. 카테고리 타입
 
 ```typescript
-type DataType = 'WANTED' | 'JOBPLANET' | 'SARAMIN' | 'OTHER';
+type DataType =
+  | 'WANTED'      // 원티드
+  | 'JOBPLANET'   // 잡플래닛
+  | 'SARAMIN'     // 사람인
+  | 'INNOFOREST'  // 혁신의숲
+  | 'DART'        // DART (전자공시)
+  | 'SMES'        // 중소벤처기업부
+  | 'BLIND'       // 블라인드
+  | 'OTHER';      // 기타
 
 type ImageSubCategory =
   | 'revenue_trend'
