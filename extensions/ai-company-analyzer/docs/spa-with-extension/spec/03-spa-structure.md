@@ -208,6 +208,28 @@ interface OCRState {
 }
 ```
 
+### 4.3 Query 키 중앙화
+
+캐시 무효화 일관성을 위해 Query 키를 팩토리 패턴으로 중앙 관리.
+
+```typescript
+// src/lib/query/keys.ts
+export const queryKeys = {
+  all: ['extension'] as const,
+  companies: () => [...queryKeys.all, 'companies'] as const,
+  company: (id: string) => [...queryKeys.companies(), id] as const,
+  images: (companyId: string) => [...queryKeys.all, 'images', companyId] as const,
+  imageData: (id: string) => [...queryKeys.all, 'imageData', id] as const,
+  stats: () => [...queryKeys.all, 'stats'] as const,
+} as const;
+
+// 사용 예시
+useQuery({ queryKey: queryKeys.company(companyId), ... });
+
+// 캐시 무효화
+queryClient.invalidateQueries({ queryKey: queryKeys.companies() });
+```
+
 ## 5. 주요 컴포넌트
 
 ### 5.1 Layout
@@ -392,7 +414,143 @@ export function buildAnalyzePrompt(text: string, category: string): string {
 }
 ```
 
-## 7. 환경 변수
+### 6.3 AI 엔진 Strategy 패턴
+
+WebGPU 미지원 환경 폴백, 테스트용 Mock 등을 위해 Strategy 패턴 적용.
+
+```typescript
+// src/ai/engines/types.ts
+type EngineStatus = 'idle' | 'loading' | 'ready' | 'error';
+
+interface AIEngine {
+  id: string;
+  status: EngineStatus;
+  init(onProgress?: (p: number) => void): Promise<void>;
+  classify(text: string): Promise<ImageSubCategory>;
+  analyze(text: string, category: ImageSubCategory): Promise<string>;
+  terminate(): Promise<void>;
+}
+```
+
+```
+src/ai/engines/
+├── types.ts           // 인터페이스
+├── qwen3.ts           // WebGPU Qwen3 구현
+├── ollama.ts          // 로컬 Ollama 폴백
+└── mock.ts            // 테스트용
+```
+
+**폴백 우선순위:**
+
+```typescript
+// src/ai/pipeline.ts
+const ENGINE_PRIORITY = ['qwen3', 'ollama', 'mock'] as const;
+
+async function getAvailableEngine(): Promise<AIEngine> {
+  for (const engineId of ENGINE_PRIORITY) {
+    const engine = engines[engineId];
+    try {
+      await engine.init();
+      return engine;
+    } catch {
+      continue;
+    }
+  }
+  throw new Error('No available AI engine');
+}
+```
+
+| 엔진 | 환경 | 특징 |
+|------|------|------|
+| Qwen3 | WebGPU 지원 브라우저 | 기본, 브라우저 내 추론 |
+| Ollama | 로컬 서버 실행 | WebGPU 미지원 시 폴백 |
+| Mock | 테스트 환경 | 고정 응답, CI/CD |
+
+## 7. Extension Client (DI 기반)
+
+테스트 용이성을 위해 인터페이스 기반 DI 패턴 적용.
+
+### 7.1 인터페이스
+
+```typescript
+// src/lib/extension-client/types.ts
+type MessageType =
+  | 'GET_COMPANIES' | 'GET_COMPANY' | 'DELETE_COMPANY'
+  | 'GET_IMAGES' | 'GET_IMAGE_DATA' | 'DELETE_IMAGE'
+  | 'SAVE_ANALYSIS' | 'BATCH_SAVE_ANALYSIS'
+  | 'PING' | 'GET_STATS';
+
+interface IExtensionHandler {
+  send<T extends MessageType>(
+    type: T,
+    payload?: MessagePayload[T]
+  ): Promise<MessageResponse[T]>;
+}
+```
+
+### 7.2 구현 구조
+
+```
+src/lib/extension-client/
+├── types.ts           // 타입 정의
+├── chrome-handler.ts  // Chrome API 구현
+├── mock-handler.ts    // 테스트용 Mock
+└── client.ts          // DI 컨테이너
+```
+
+### 7.3 Chrome Handler
+
+```typescript
+// src/lib/extension-client/chrome-handler.ts
+export class ChromeHandler implements IExtensionHandler {
+  constructor(private extensionId: string) {}
+
+  async send<T extends MessageType>(
+    type: T,
+    payload?: MessagePayload[T]
+  ): Promise<MessageResponse[T]> {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(
+        this.extensionId,
+        { type, payload },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new ExtensionError(chrome.runtime.lastError.message));
+          } else if (!response?.success) {
+            reject(new ExtensionError(response?.error?.message || 'Unknown error'));
+          } else {
+            resolve(response.data);
+          }
+        }
+      );
+    });
+  }
+}
+```
+
+### 7.4 클라이언트 팩토리
+
+```typescript
+// src/lib/extension-client/client.ts
+let handler: IExtensionHandler | null = null;
+
+export function initExtensionClient(h: IExtensionHandler) {
+  handler = h;
+}
+
+export function getExtensionClient(): IExtensionHandler {
+  if (!handler) throw new Error('Extension client not initialized');
+  return handler;
+}
+
+// 앱 초기화 시
+initExtensionClient(new ChromeHandler(EXTENSION_ID));
+
+// 테스트 시
+initExtensionClient(createMockHandler());
+```
+
+## 8. 환경 변수
 
 ```bash
 # .env.example
@@ -408,7 +566,7 @@ export default defineConfig({
 });
 ```
 
-## 8. 빌드 설정
+## 9. 빌드 설정
 
 ```typescript
 // vite.config.ts
@@ -443,7 +601,7 @@ export default defineConfig({
 });
 ```
 
-## 9. TailwindCSS 설정
+## 10. TailwindCSS 설정
 
 ```javascript
 // tailwind.config.js
@@ -464,7 +622,7 @@ export default {
 };
 ```
 
-## 10. TypeScript 설정
+## 11. TypeScript 설정
 
 ```json
 // tsconfig.json
@@ -494,3 +652,74 @@ export default {
   "references": [{ "path": "./tsconfig.node.json" }]
 }
 ```
+
+## 12. 에러 경계 컴포넌트
+
+계층적 에러 처리를 위한 Error Boundary 구조.
+
+### 12.1 컴포넌트 구조
+
+```
+src/components/errors/
+├── ErrorBoundary.tsx           # 일반 에러 경계
+├── ExtensionErrorBoundary.tsx  # Extension 연결 에러
+└── AIEngineFallback.tsx        # AI 엔진 에러
+```
+
+### 12.2 계층적 적용
+
+```tsx
+// src/App.tsx
+function App() {
+  return (
+    <ErrorBoundary fallback={<GeneralErrorPage />}>
+      <ExtensionErrorBoundary fallback={<ExtensionRequiredPage />}>
+        <AIEngineFallback fallback={<AIEngineErrorPage />}>
+          <RouterProvider router={router} />
+        </AIEngineFallback>
+      </ExtensionErrorBoundary>
+    </ErrorBoundary>
+  );
+}
+```
+
+### 12.3 Extension Error Boundary
+
+```typescript
+// src/components/errors/ExtensionErrorBoundary.tsx
+interface Props {
+  children: React.ReactNode;
+  fallback: React.ReactNode;
+}
+
+interface State {
+  hasError: boolean;
+  error: Error | null;
+}
+
+export class ExtensionErrorBoundary extends Component<Props, State> {
+  state: State = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: Error): State {
+    if (error instanceof ExtensionError) {
+      return { hasError: true, error };
+    }
+    throw error; // 다른 에러는 상위로 전파
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
+```
+
+### 12.4 에러 타입
+
+| 에러 | 경계 | 폴백 UI |
+|------|------|---------|
+| ExtensionError | ExtensionErrorBoundary | Extension 설치 안내 |
+| AIEngineError | AIEngineFallback | 엔진 로딩 실패 안내 |
+| 일반 에러 | ErrorBoundary | 일반 에러 페이지 |

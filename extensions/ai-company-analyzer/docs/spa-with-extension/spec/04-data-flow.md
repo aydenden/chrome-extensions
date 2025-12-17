@@ -703,3 +703,334 @@ function SettingsPage() {
     └─> [LLM 엔진 초기화] (백그라운드)
             transformers.pipeline() → progress → ready
 ```
+
+## 12. 텍스트 처리 파이프라인
+
+OCR 출력부터 LLM 입력/출력까지의 텍스트 처리 파이프라인.
+
+### 12.1 파이프라인 구조
+
+```
+[OCR 출력] → [기본 정규화] → [한국어 처리] → [LLM 입력]
+                                              ↓
+[UI 표시] ← [응답 파싱] ← [LLM 출력]
+```
+
+### 12.2 순수 함수 모듈
+
+```
+src/lib/text-processing/
+├── ocr-normalization.ts    # OCR 기본 정규화
+├── korean-processing.ts    # 한국어 특화 처리
+└── llm-response-parser.ts  # LLM 응답 파싱
+```
+
+### 12.3 OCR 정규화
+
+```typescript
+// src/lib/text-processing/ocr-normalization.ts
+
+/**
+ * 연속 공백을 단일 공백으로 정리
+ */
+export function cleanOCRText(text: string): string {
+  return text
+    .replace(/[ \t]+/g, ' ')           // 연속 공백 → 단일 공백
+    .replace(/\n{3,}/g, '\n\n')        // 3개 이상 줄바꿈 → 2개
+    .replace(/^\s+|\s+$/gm, '')        // 각 줄 앞뒤 공백 제거
+    .trim();
+}
+
+/**
+ * OCR 결과에서 흔한 오인식 패턴 수정
+ */
+export function fixCommonOCRErrors(text: string): string {
+  return text
+    .replace(/l(\d)/g, '1$1')          // l1234 → 11234
+    .replace(/O(\d)/g, '0$1')          // O1234 → 01234
+    .replace(/(\d),(\d{3})/g, '$1,$2'); // 숫자 천 단위 콤마 정리
+}
+```
+
+### 12.4 한국어 처리
+
+```typescript
+// src/lib/text-processing/korean-processing.ts
+
+/**
+ * 한국어 숫자+단위 공백 제거
+ * "1 억 원" → "1억원"
+ */
+export function cleanKoreanOCRText(text: string): string {
+  return text
+    // 숫자와 단위 사이 공백 제거
+    .replace(/(\d)\s*(억|만|천|백|원|명|%|개월)/g, '$1$2')
+    // 괄호 내부 공백 정리
+    .replace(/\(\s+/g, '(')
+    .replace(/\s+\)/g, ')')
+    // 연도 형식 정리
+    .replace(/(\d{4})\s*년/g, '$1년');
+}
+
+/**
+ * 한국어 텍스트 여부 판별
+ */
+export function containsKorean(text: string): boolean {
+  return /[가-힣]/.test(text);
+}
+```
+
+### 12.5 LLM 응답 파싱
+
+```typescript
+// src/lib/text-processing/llm-response-parser.ts
+
+/**
+ * <think> 태그 제거 (Qwen3 reasoning 제거)
+ */
+export function removeThinkingTags(text: string): string {
+  return text
+    .replace(/<think>[\s\S]*?<\/think>/g, '')
+    .replace(/<think>[\s\S]*/g, '')    // 불완전한 태그도 제거
+    .trim();
+}
+
+/**
+ * 카테고리 문자열 파싱
+ */
+export function parseCategory(text: string): ImageSubCategory {
+  const normalized = text.toLowerCase().trim();
+
+  const CATEGORIES: ImageSubCategory[] = [
+    'revenue_trend', 'balance_sheet', 'income_statement',
+    'employee_trend', 'review_positive', 'review_negative',
+    'company_overview', 'unknown'
+  ];
+
+  // 정확히 일치
+  if (CATEGORIES.includes(normalized as ImageSubCategory)) {
+    return normalized as ImageSubCategory;
+  }
+
+  // 부분 일치
+  for (const cat of CATEGORIES) {
+    if (normalized.includes(cat)) {
+      return cat;
+    }
+  }
+
+  return 'unknown';
+}
+```
+
+### 12.6 파이프라인 조합
+
+```typescript
+// src/lib/text-processing/pipeline.ts
+
+export function processOCROutput(rawText: string): string {
+  let text = cleanOCRText(rawText);
+  text = fixCommonOCRErrors(text);
+
+  if (containsKorean(text)) {
+    text = cleanKoreanOCRText(text);
+  }
+
+  return text;
+}
+
+export function processLLMOutput(response: string): {
+  category: ImageSubCategory;
+  content: string;
+} {
+  const cleaned = removeThinkingTags(response);
+  return {
+    category: parseCategory(cleaned),
+    content: cleaned,
+  };
+}
+```
+
+## 13. 회복성 패턴
+
+외부 서비스(Extension, AI 엔진) 장애 대응을 위한 회복성 패턴.
+
+### 13.1 Circuit Breaker
+
+반복 실패 시 자동으로 요청 차단.
+
+```typescript
+// src/lib/resilience/circuit-breaker.ts
+
+type CircuitState = 'CLOSED' | 'OPEN' | 'HALF_OPEN';
+
+interface CircuitBreakerOptions {
+  threshold: number;      // 실패 횟수 임계값
+  resetTimeout: number;   // OPEN → HALF_OPEN 전환 시간 (ms)
+  halfOpenRequests: number; // HALF_OPEN에서 허용할 테스트 요청 수
+}
+
+class CircuitBreaker {
+  private state: CircuitState = 'CLOSED';
+  private failures = 0;
+  private lastFailureTime = 0;
+  private halfOpenAttempts = 0;
+
+  constructor(private options: CircuitBreakerOptions) {}
+
+  async execute<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.state === 'OPEN') {
+      if (Date.now() - this.lastFailureTime > this.options.resetTimeout) {
+        this.state = 'HALF_OPEN';
+        this.halfOpenAttempts = 0;
+      } else {
+        throw new CircuitOpenError('Circuit is OPEN');
+      }
+    }
+
+    if (this.state === 'HALF_OPEN') {
+      if (this.halfOpenAttempts >= this.options.halfOpenRequests) {
+        throw new CircuitOpenError('Circuit is HALF_OPEN, limit reached');
+      }
+      this.halfOpenAttempts++;
+    }
+
+    try {
+      const result = await fn();
+      this.onSuccess();
+      return result;
+    } catch (error) {
+      this.onFailure();
+      throw error;
+    }
+  }
+
+  private onSuccess() {
+    this.failures = 0;
+    this.state = 'CLOSED';
+  }
+
+  private onFailure() {
+    this.failures++;
+    this.lastFailureTime = Date.now();
+
+    if (this.failures >= this.options.threshold) {
+      this.state = 'OPEN';
+    }
+  }
+}
+```
+
+### 13.2 적용 지점
+
+| 대상 | 임계값 | 리셋 시간 | 설명 |
+|------|--------|----------|------|
+| Extension API | 5회 | 30초 | 연결 끊김 방지 |
+| AI Engine | 3회 | 60초 | 메모리 부족 등 복구 대기 |
+
+### 13.3 Extension Client 적용
+
+```typescript
+// src/lib/extension-client/client.ts
+
+const extensionCircuit = new CircuitBreaker({
+  threshold: 5,
+  resetTimeout: 30_000,
+  halfOpenRequests: 1,
+});
+
+export async function sendToExtension<T>(
+  type: MessageType,
+  payload?: any
+): Promise<T> {
+  return extensionCircuit.execute(async () => {
+    return handler.send(type, payload);
+  });
+}
+```
+
+### 13.4 Retry with Backoff
+
+일시적 실패에 대한 재시도 전략.
+
+```typescript
+// src/lib/resilience/retry.ts
+
+interface RetryOptions {
+  maxAttempts: number;
+  initialDelay: number;   // ms
+  maxDelay: number;       // ms
+  factor: number;         // 지수 증가 배수
+}
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  options: RetryOptions = {
+    maxAttempts: 3,
+    initialDelay: 1000,
+    maxDelay: 10000,
+    factor: 2,
+  }
+): Promise<T> {
+  let attempt = 0;
+  let delay = options.initialDelay;
+
+  while (attempt < options.maxAttempts) {
+    try {
+      return await fn();
+    } catch (error) {
+      attempt++;
+      if (attempt >= options.maxAttempts) throw error;
+
+      await sleep(delay);
+      delay = Math.min(delay * options.factor, options.maxDelay);
+    }
+  }
+
+  throw new Error('Max retry attempts reached');
+}
+```
+
+### 13.5 에러 복구 흐름 (개선)
+
+```
+[요청]
+    │
+    ▼
+[Circuit Breaker 체크]
+    │
+    ├─ OPEN → 즉시 실패 (Fast Fail)
+    │
+    └─ CLOSED/HALF_OPEN → 실행
+           │
+           ▼
+       [실행 + Retry]
+           │
+           ├─ 성공 → 응답 반환
+           │
+           └─ 실패 (retry 소진)
+                  │
+                  ├─ threshold 도달 → Circuit OPEN
+                  │
+                  └─ 에러 반환 + 사용자 알림
+```
+
+### 13.6 UI 피드백
+
+```typescript
+// Circuit OPEN 시 사용자에게 상태 표시
+function ExtensionStatus() {
+  const { circuitState } = useExtension();
+
+  if (circuitState === 'OPEN') {
+    return (
+      <Alert variant="warning">
+        Extension 연결이 불안정합니다.
+        잠시 후 자동으로 재연결을 시도합니다.
+      </Alert>
+    );
+  }
+
+  return null;
+}
+```

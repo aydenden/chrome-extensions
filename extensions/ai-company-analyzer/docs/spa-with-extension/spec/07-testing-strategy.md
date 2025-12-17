@@ -403,6 +403,76 @@ export const mockChrome = {
 vi.stubGlobal('chrome', mockChrome);
 ```
 
+### 6.4 DI 기반 Mock 설정
+
+Extension Client DI 패턴을 활용한 테스트 Mock 설정.
+
+```typescript
+// spa/test/mocks/extension-handler.ts
+import { IExtensionHandler } from '@/lib/extension-client/types';
+import { mockCompany, mockImageMeta, mockImageData } from './fixtures';
+
+/**
+ * DI용 Mock Extension Handler 생성
+ */
+export const createMockHandler = (): IExtensionHandler => ({
+  send: vi.fn(async (type, payload) => {
+    const handlers: Record<string, () => any> = {
+      'GET_COMPANIES': () => [mockCompany()],
+      'GET_COMPANY': () => mockCompany(),
+      'GET_IMAGES': () => [mockImageMeta()],
+      'GET_IMAGE_DATA': () => mockImageData(),
+      'SAVE_ANALYSIS': () => ({ updatedAt: new Date().toISOString() }),
+      'BATCH_SAVE_ANALYSIS': () => ({ savedCount: 1, failedIds: [] }),
+      'DELETE_COMPANY': () => ({ deletedImages: 3 }),
+      'DELETE_IMAGE': () => null,
+      'PING': () => ({ version: '1.0.0', timestamp: new Date().toISOString() }),
+      'GET_STATS': () => ({
+        totalCompanies: 10,
+        totalImages: 50,
+        analyzedImages: 30,
+        storageUsed: 1024000,
+      }),
+    };
+    return handlers[type]?.() ?? null;
+  }),
+});
+
+/**
+ * 실패 시뮬레이션 Mock
+ */
+export const createFailingHandler = (
+  failingTypes: string[]
+): IExtensionHandler => ({
+  send: vi.fn(async (type) => {
+    if (failingTypes.includes(type)) {
+      throw new Error(`Mock failure for ${type}`);
+    }
+    return createMockHandler().send(type, {});
+  }),
+});
+```
+
+**테스트에서 사용:**
+
+```typescript
+// spa/src/__tests__/example.test.ts
+import { initExtensionClient } from '@/lib/extension-client/client';
+import { createMockHandler } from '../test/mocks/extension-handler';
+
+describe('CompanyList', () => {
+  beforeEach(() => {
+    // DI로 Mock 주입
+    initExtensionClient(createMockHandler());
+  });
+
+  test('회사 목록을 렌더링한다', async () => {
+    render(<CompanyList />);
+    expect(await screen.findByText('테스트 회사')).toBeInTheDocument();
+  });
+});
+```
+
 ---
 
 ## 7. 테스트 실행 전략
@@ -490,3 +560,163 @@ jobs:
 | [프롬프트 테스트 가이드](../feature/06-prompt-testing.md) | promptfoo + Ollama 설정 |
 | [분석 파이프라인](../feature/03-analysis-pipeline.md) | LLM 파이프라인 상세 |
 | [OCR 파이프라인](../feature/02-ocr-pipeline.md) | OCR 처리 상세 |
+
+---
+
+## 10. 순수 함수 테스트 가이드
+
+외부 의존성 없는 순수 함수들의 테스트 전략.
+
+### 10.1 대상 함수
+
+테스트 용이한 순수 함수로 분리된 모듈들:
+
+| 모듈 | 순수 함수 | 역할 |
+|------|----------|------|
+| text-processing | `cleanOCRText()` | 연속 공백/줄바꿈 정리 |
+| | `fixCommonOCRErrors()` | OCR 오인식 패턴 수정 |
+| | `cleanKoreanOCRText()` | 한국어 숫자+단위 공백 제거 |
+| | `removeThinkingTags()` | `<think>` 태그 제거 |
+| | `parseCategory()` | 카테고리 문자열 파싱 |
+| prompts | `buildClassifyPrompt()` | 분류 프롬프트 생성 |
+| | `buildAnalyzePrompt()` | 분석 프롬프트 생성 |
+| image-processing | `blobToBase64()` | Blob → Base64 변환 |
+| | `base64ToBlob()` | Base64 → Blob 변환 |
+
+### 10.2 텍스트 처리 테스트
+
+```typescript
+// spa/src/lib/text-processing/__tests__/ocr-normalization.test.ts
+describe('cleanOCRText', () => {
+  test('연속 공백을 단일 공백으로 정리', () => {
+    expect(cleanOCRText('hello   world')).toBe('hello world');
+  });
+
+  test('3개 이상 줄바꿈을 2개로 정리', () => {
+    expect(cleanOCRText('a\n\n\n\nb')).toBe('a\n\nb');
+  });
+
+  test('각 줄 앞뒤 공백 제거', () => {
+    expect(cleanOCRText('  hello  \n  world  ')).toBe('hello\nworld');
+  });
+});
+
+describe('fixCommonOCRErrors', () => {
+  test('l을 1로 교정 (숫자 앞)', () => {
+    expect(fixCommonOCRErrors('l234')).toBe('1234');
+  });
+
+  test('O를 0으로 교정 (숫자 앞)', () => {
+    expect(fixCommonOCRErrors('O123')).toBe('0123');
+  });
+});
+```
+
+### 10.3 한국어 처리 테스트
+
+```typescript
+// spa/src/lib/text-processing/__tests__/korean-processing.test.ts
+describe('cleanKoreanOCRText', () => {
+  test('숫자+단위 공백 제거', () => {
+    expect(cleanKoreanOCRText('1 억 원')).toBe('1억원');
+    expect(cleanKoreanOCRText('50 명')).toBe('50명');
+  });
+
+  test('괄호 내부 공백 정리', () => {
+    expect(cleanKoreanOCRText('( 2024 )')).toBe('(2024)');
+  });
+
+  test('연도 형식 정리', () => {
+    expect(cleanKoreanOCRText('2024 년')).toBe('2024년');
+  });
+});
+
+describe('containsKorean', () => {
+  test('한국어 포함 시 true', () => {
+    expect(containsKorean('안녕 hello')).toBe(true);
+  });
+
+  test('한국어 미포함 시 false', () => {
+    expect(containsKorean('hello world')).toBe(false);
+  });
+});
+```
+
+### 10.4 LLM 응답 파싱 테스트
+
+```typescript
+// spa/src/lib/text-processing/__tests__/llm-response-parser.test.ts
+describe('removeThinkingTags', () => {
+  test('완전한 <think> 태그 제거', () => {
+    const text = '<think>reasoning here</think>결과';
+    expect(removeThinkingTags(text)).toBe('결과');
+  });
+
+  test('불완전한 <think> 태그 제거', () => {
+    const text = '<think>incomplete reasoning';
+    expect(removeThinkingTags(text)).toBe('');
+  });
+
+  test('중첩 태그 처리', () => {
+    const text = '<think>first</think>middle<think>second</think>end';
+    expect(removeThinkingTags(text)).toBe('middleend');
+  });
+});
+
+describe('parseCategory', () => {
+  test('정확한 카테고리 반환', () => {
+    expect(parseCategory('revenue_trend')).toBe('revenue_trend');
+  });
+
+  test('대소문자 무시', () => {
+    expect(parseCategory('REVENUE_TREND')).toBe('revenue_trend');
+  });
+
+  test('부분 일치 처리', () => {
+    expect(parseCategory('I think this is revenue_trend.')).toBe('revenue_trend');
+  });
+
+  test('불일치 시 unknown 반환', () => {
+    expect(parseCategory('something random')).toBe('unknown');
+  });
+});
+```
+
+### 10.5 프롬프트 빌더 테스트
+
+```typescript
+// spa/src/ai/__tests__/prompts.test.ts
+describe('buildClassifyPrompt', () => {
+  test('텍스트 길이 제한 (1500자)', () => {
+    const longText = 'a'.repeat(2000);
+    const prompt = buildClassifyPrompt(longText);
+    // 프롬프트 내 텍스트가 제한됨
+    expect(prompt.length).toBeLessThan(2500);
+  });
+
+  test('모든 카테고리 포함', () => {
+    const prompt = buildClassifyPrompt('test');
+    expect(prompt).toContain('revenue_trend');
+    expect(prompt).toContain('balance_sheet');
+    expect(prompt).toContain('unknown');
+  });
+});
+
+describe('buildAnalyzePrompt', () => {
+  test('카테고리와 텍스트 포함', () => {
+    const prompt = buildAnalyzePrompt('sample text', 'revenue_trend');
+    expect(prompt).toContain('sample text');
+    expect(prompt).toContain('revenue_trend');
+  });
+});
+```
+
+### 10.6 테스트 실행
+
+```bash
+# 순수 함수 테스트만 실행
+bun run test:unit --grep "text-processing|prompts"
+
+# 커버리지 포함
+bun run test:unit --coverage --grep "text-processing"
+```
