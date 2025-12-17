@@ -434,3 +434,34 @@ async function getCompanies(): Promise<CompanyDTO[]> {
   return validated;
 }
 ```
+
+## 11. 아키텍처 결정 기록
+
+주요 설계 결정과 그 배경을 간략히 기록.
+
+### 11.1 Extension Client DI 패턴
+
+| 항목 | 내용 |
+|------|------|
+| 결정 | 인터페이스 기반 DI로 Chrome API 추상화 |
+| 이유 | 테스트 시 Mock 주입, 브라우저 의존성 격리 |
+| 대안 | 전역 Mock (상태 오염), Service Locator (런타임 확인 불가) |
+| 참조 | 03-spa-structure.md Section 7 |
+
+### 11.2 AI Engine Strategy 패턴
+
+| 항목 | 내용 |
+|------|------|
+| 결정 | Strategy 패턴으로 AI 엔진 추상화 |
+| 이유 | WebGPU 미지원 폴백, 테스트용 Mock, 새 엔진 추가 용이 |
+| 대안 | if-else 분기 (확장 어려움), 단일 엔진 (유연성 부족) |
+| 참조 | 03-spa-structure.md Section 6.3 |
+
+### 11.3 Shared Types + Zod Validation
+
+| 항목 | 내용 |
+|------|------|
+| 결정 | Discriminated Union + Zod 런타임 검증 |
+| 이유 | 컴파일 타임 + 런타임 이중 검증, 타입 추론 자동화 |
+| 대안 | TypeScript만 (런타임 검증 없음), io-ts (가독성 낮음) |
+| 참조 | Section 10 |
