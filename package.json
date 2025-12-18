@@ -1,16 +1,20 @@
 {
   "name": "chrome-extensions",
   "private": true,
-  "workspaces": ["extensions/*"],
+  "workspaces": [
+    "extensions/*"
+  ],
   "scripts": {
     "build": "bun run --filter './extensions/*' build",
     "build:wanted": "bun run --cwd extensions/wanted-helper build",
     "dev:wanted": "bun run --cwd extensions/wanted-helper dev",
-    "build:ai-analyzer": "bun run --cwd extensions/ai-company-analyzer build",
-    "dev:ai-analyzer": "bun run --cwd extensions/ai-company-analyzer dev"
+    "build:ai-analyzer": "bun run --cwd extensions/ai-company-analyzer/extension build",
+    "dev:ai-analyzer": "bun run --cwd extensions/ai-company-analyzer/extension dev",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@types/chrome": "^0.1.12",
+    "husky": "^9.1.7",
     "typescript": "^5.5.3"
   }
 }

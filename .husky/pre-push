@@ -1,0 +1,50 @@
+#!/bin/sh
+
+echo "🔍 Running pre-push checks..."
+
+# ai-company-analyzer 프로젝트 경로
+PROJECT_DIR="extensions/ai-company-analyzer"
+
+# 1. 타입 체크 (병렬)
+echo "📝 Type checking..."
+(cd "$PROJECT_DIR/extension" && bun run typecheck) &
+(cd "$PROJECT_DIR/spa" && bun run typecheck) &
+wait
+
+if [ $? -ne 0 ]; then
+  echo "❌ Type check failed!"
+  exit 1
+fi
+
+# 2. 단위 테스트 (병렬)
+echo "🧪 Running unit tests..."
+(cd "$PROJECT_DIR/extension" && bun run test:run) &
+(cd "$PROJECT_DIR/spa" && bun run test:run) &
+wait
+
+if [ $? -ne 0 ]; then
+  echo "❌ Unit tests failed!"
+  exit 1
+fi
+
+# 3. E2E 테스트 (Chromium만)
+echo "🎭 Running E2E tests (Chromium only)..."
+(cd "$PROJECT_DIR/spa" && bun run e2e:chromium)
+
+if [ $? -ne 0 ]; then
+  echo "❌ E2E tests failed!"
+  exit 1
+fi
+
+# 4. 빌드 검증
+echo "🏗️ Building..."
+(cd "$PROJECT_DIR/extension" && bun run build) &
+(cd "$PROJECT_DIR/spa" && bun run build) &
+wait
+
+if [ $? -ne 0 ]; then
+  echo "❌ Build failed!"
+  exit 1
+fi
+
+echo "✅ All checks passed!"
