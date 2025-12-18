@@ -1,0 +1,144 @@
+/* Pretendard Variable Font */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css');
+
+/* JetBrains Mono */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* === Base Colors: Ink & Paper === */
+  --paper: #F7F5F0;
+  --paper-warm: #EDE9E0;
+  --paper-dark: #1C1917;
+
+  --ink: #0F0F0F;
+  --ink-soft: #3D3D3D;
+  --ink-muted: #737373;
+
+  /* === Signal Colors === */
+  --signal-positive: #059669;
+  --signal-negative: #DC2626;
+  --signal-neutral: #0369A1;
+
+  /* === Highlight Colors === */
+  --highlight-yellow: #FEF08A;
+  --highlight-coral: #FECACA;
+  --highlight-mint: #A7F3D0;
+
+  /* === Surface === */
+  --surface-elevated: #FFFFFF;
+  --surface-sunken: #E7E5E0;
+  --border-subtle: rgba(15, 15, 15, 0.08);
+  --border-strong: rgba(15, 15, 15, 0.2);
+
+  /* === Data Source Colors === */
+  --source-wanted: #2563EB;
+  --source-innoforest: #047857;
+  --source-dart: #1E293B;
+  --source-smes: #C2410C;
+  --source-blind: #CA8A04;
+  --source-jobplanet: #0D9488;
+  --source-saramin: #7C3AED;
+  --source-other: #6B7280;
+
+  /* === Typography === */
+  --font-display: 'Pretendard Variable', 'Pretendard', -apple-system, sans-serif;
+  --font-body: 'Pretendard Variable', 'Pretendard', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+
+  /* === Fluid Type Scale === */
+  --text-xs: clamp(0.7rem, 0.65rem + 0.25vw, 0.75rem);
+  --text-sm: clamp(0.8rem, 0.75rem + 0.25vw, 0.875rem);
+  --text-base: clamp(0.95rem, 0.9rem + 0.25vw, 1rem);
+  --text-lg: clamp(1.1rem, 1rem + 0.5vw, 1.25rem);
+  --text-xl: clamp(1.25rem, 1.1rem + 0.75vw, 1.5rem);
+  --text-2xl: clamp(1.5rem, 1.25rem + 1.25vw, 2rem);
+  --text-3xl: clamp(2rem, 1.5rem + 2.5vw, 3rem);
+  --text-4xl: clamp(2.5rem, 2rem + 3vw, 4rem);
+  --text-data-hero: clamp(3rem, 2.5rem + 4vw, 6rem);
+
+  /* === Spacing === */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-8: 3rem;
+  --space-10: 4rem;
+  --space-12: 6rem;
+}
+
+/* Dark Theme */
+[data-theme="dark"] {
+  --paper: #0F0F0F;
+  --paper-warm: #1A1917;
+  --paper-dark: #F7F5F0;
+
+  --ink: #EDEDED;
+  --ink-soft: #B0B0B0;
+  --ink-muted: #6B6B6B;
+
+  --surface-elevated: #1C1C1C;
+  --surface-sunken: #0A0A0A;
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.15);
+}
+
+/* === Base Styles === */
+body {
+  font-family: var(--font-body);
+  background-color: var(--paper);
+  color: var(--ink);
+  line-height: 1.6;
+}
+
+/* === Typography Classes === */
+.headline {
+  font-family: var(--font-display);
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.subhead {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-style: italic;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+}
+
+.data-figure {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-feature-settings: 'tnum' 1;
+  letter-spacing: -0.02em;
+}
+
+.label {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: var(--text-xs);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* === Editorial Grid === */
+.editorial-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: var(--space-4);
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 var(--space-6);
+}
+
+@media (max-width: 1024px) {
+  .editorial-grid {
+    padding: 0 var(--space-4);
+  }
+}

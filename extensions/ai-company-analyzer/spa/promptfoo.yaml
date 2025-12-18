@@ -1,0 +1,115 @@
+description: "AI Company Analyzer - Prompt Testing"
+
+providers:
+  - id: ollama:qwen2.5:0.5b
+    config:
+      temperature: 0.3
+
+prompts:
+  - file://prompts/classification.txt
+  - file://prompts/analysis.txt
+
+# Default configuration for extracting JSON from model output
+defaultTest:
+  options:
+    transformOutput: |
+      // Extract JSON from potential markdown code blocks or raw text
+      const text = output.trim();
+
+      // Remove markdown code blocks if present
+      const jsonMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/) ||
+                        text.match(/(\{[\s\S]*\})/);
+
+      if (jsonMatch) {
+        try {
+          return JSON.parse(jsonMatch[1]);
+        } catch (e) {
+          return { error: "Failed to parse JSON", raw: text };
+        }
+      }
+
+      return { error: "No JSON found in output", raw: text };
+
+tests:
+  # Classification Tests
+  - description: "Classify WANTED job posting"
+    vars:
+      file://test/golden-dataset.json#classification[0].vars
+    assert:
+      - type: contains-json
+      - type: javascript
+        value: |
+          const data = JSON.parse(output);
+          if (data.category !== "WANTED") return false;
+          if (data.subCategory !== "JOB_POSTING") return false;
+          if (data.confidence < 0.8) return false;
+          return true;
+
+  - description: "Classify BLIND salary review"
+    vars:
+      file://test/golden-dataset.json#classification[1].vars
+    assert:
+      - type: contains-json
+      - type: javascript
+        value: |
+          const data = JSON.parse(output);
+          if (data.category !== "BLIND") return false;
+          if (data.subCategory !== "SALARY_REVIEW") return false;
+          if (data.confidence < 0.8) return false;
+          return true;
+
+  - description: "Classify DART financial statement"
+    vars:
+      file://test/golden-dataset.json#classification[2].vars
+    assert:
+      - type: contains-json
+      - type: javascript
+        value: |
+          const data = JSON.parse(output);
+          if (data.category !== "DART") return false;
+          if (data.subCategory !== "FINANCIAL_STATEMENT") return false;
+          if (data.confidence < 0.8) return false;
+          return true;
+
+  # Analysis Test
+  - description: "Analyze job posting content"
+    vars:
+      file://test/golden-dataset.json#analysis[0].vars
+    assert:
+      - type: contains-json
+      - type: javascript
+        value: |
+          const data = JSON.parse(output);
+
+          // Check required fields exist
+          if (!data.summary || !data.keyPoints || !data.keywords || !data.sentiment) {
+            return false;
+          }
+
+          // Check keyPoints is array with at least 3 items
+          if (!Array.isArray(data.keyPoints) || data.keyPoints.length < 3) {
+            return false;
+          }
+
+          // Check keywords is array
+          if (!Array.isArray(data.keywords) || data.keywords.length === 0) {
+            return false;
+          }
+
+          // Check sentiment structure
+          if (!data.sentiment.tone || !data.sentiment.confidence) {
+            return false;
+          }
+
+          // Check if sentiment is positive (job postings are typically positive)
+          if (data.sentiment.tone !== "POSITIVE" && data.sentiment.tone !== "NEUTRAL") {
+            return false;
+          }
+
+          return true;
+
+# Output configuration
+outputPath: ./promptfoo-results.json
+
+# Cache configuration
+cache: true
