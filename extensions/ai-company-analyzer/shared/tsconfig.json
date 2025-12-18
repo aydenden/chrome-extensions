@@ -1,0 +1,15 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    },
+    "lib": ["ES2020"],
+    "noEmit": true,
+    "strict": true,
+    "declaration": true
+  },
+  "include": ["**/*"],
+  "exclude": ["node_modules"]
+}
