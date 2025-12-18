@@ -1,0 +1,53 @@
+{
+  "classification": [
+    {
+      "id": "wanted_job_posting_001",
+      "vars": {
+        "ocr_text": "Backend Engineer\n\nWe are looking for a Backend Engineer to join our growing team.\n\nResponsibilities:\n- Design and implement scalable APIs\n- Optimize database performance\n- Collaborate with frontend team\n\nRequirements:\n- 3+ years of experience with Node.js\n- Strong knowledge of PostgreSQL\n- Experience with Docker and Kubernetes\n\nWhat we offer:\n- Competitive salary\n- Stock options\n- Flexible working hours"
+      },
+      "expected": {
+        "category": "WANTED",
+        "subCategory": "JOB_POSTING",
+        "confidence_min": 0.8
+      }
+    },
+    {
+      "id": "blind_salary_review_001",
+      "vars": {
+        "ocr_text": "연봉 협상 후기\n\n직급: 시니어 개발자\n기본급: 8500만원\n성과급: 300% (목표 달성 시)\n스톡옵션: 1000주\n\n작년 대비 15% 인상 받았습니다.\n팀 성과가 좋아서 협상이 수월했어요.\n\n복지:\n- 식대 20만원\n- 도서 구입비 무제한\n- 재택 주 3회"
+      },
+      "expected": {
+        "category": "BLIND",
+        "subCategory": "SALARY_REVIEW",
+        "confidence_min": 0.8
+      }
+    },
+    {
+      "id": "dart_financial_statement_001",
+      "vars": {
+        "ocr_text": "재무상태표\n(제 25 기 2024년 12월 31일 현재)\n\n자산\n유동자산                 500,000,000\n  현금및현금성자산       150,000,000\n  매출채권              200,000,000\n  재고자산              150,000,000\n\n비유동자산             1,200,000,000\n  유형자산              800,000,000\n  무형자산              400,000,000\n\n자산총계              1,700,000,000\n\n부채\n유동부채                300,000,000\n비유동부채              200,000,000\n\n자본\n자본금                  500,000,000\n이익잉여금              700,000,000"
+      },
+      "expected": {
+        "category": "DART",
+        "subCategory": "FINANCIAL_STATEMENT",
+        "confidence_min": 0.8
+      }
+    }
+  ],
+  "analysis": [
+    {
+      "id": "analysis_job_posting_001",
+      "vars": {
+        "company_name": "TechCorp",
+        "text": "We are looking for a Senior Full-Stack Engineer to join our AI team. You will work on cutting-edge machine learning applications using React, Node.js, and Python. We offer competitive compensation ($150k-$200k), stock options, and comprehensive health benefits. Our team values work-life balance and offers flexible remote work options. Must have 5+ years of experience and strong problem-solving skills."
+      },
+      "expected": {
+        "has_summary": true,
+        "has_keywords": true,
+        "keywords_include": ["React", "Node.js", "Python", "machine learning", "AI"],
+        "sentiment_tone": "POSITIVE",
+        "key_points_count_min": 3
+      }
+    }
+  ]
+}
