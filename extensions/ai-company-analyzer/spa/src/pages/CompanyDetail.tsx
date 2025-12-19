@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/layout';
 import { CompanyMeta, TabNavigation } from '@/components/company';
 import { ImageGallery } from '@/components/image';
 import { AnalysisReport } from '@/components/analysis';
-import { Spinner, Modal, Button } from '@/components/ui';
+import { Spinner, Modal, Button, Card } from '@/components/ui';
 import { useCompany, useDeleteCompany } from '@/hooks';
 import { ROUTES } from '@/lib/routes';
 
@@ -93,6 +93,78 @@ export default function CompanyDetail() {
         <div className="col-span-12">
           <TabNavigation tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} />
         </div>
+
+        {/* 종합 분석 결과 */}
+        {company.analysis && (
+          <div className="col-span-12">
+            <Card className="p-6">
+              <h2 className="headline text-xl mb-4">AI 종합 분석</h2>
+
+              {/* 점수 */}
+              <div className="flex items-center gap-4 mb-4">
+                <div className="text-4xl font-bold">
+                  {company.analysis.score != null ? company.analysis.score : '-'}
+                </div>
+                <div className="text-sm text-ink-muted">/ 100</div>
+              </div>
+
+              {/* 요약 */}
+              {company.analysis.summary && (
+                <p className="text-ink mb-4">{company.analysis.summary}</p>
+              )}
+
+              {/* 강점/약점 */}
+              {(company.analysis.strengths?.length || company.analysis.weaknesses?.length) && (
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  {company.analysis.strengths && company.analysis.strengths.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-signal-positive mb-2">강점</h3>
+                      <ul className="text-sm space-y-1">
+                        {company.analysis.strengths.map((s, i) => (
+                          <li key={i}>• {s}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {company.analysis.weaknesses && company.analysis.weaknesses.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-signal-negative mb-2">약점</h3>
+                      <ul className="text-sm space-y-1">
+                        {company.analysis.weaknesses.map((w, i) => (
+                          <li key={i}>• {w}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 추천 */}
+              {company.analysis.recommendation && (
+                <div className="p-3 bg-surface-sunken">
+                  <span className={`font-semibold ${
+                    company.analysis.recommendation === 'recommend' ? 'text-signal-positive' :
+                    company.analysis.recommendation === 'not_recommend' ? 'text-signal-negative' :
+                    'text-ink-muted'
+                  }`}>
+                    {company.analysis.recommendation === 'recommend' ? '추천' :
+                     company.analysis.recommendation === 'not_recommend' ? '비추천' : '중립'}
+                  </span>
+                  {company.analysis.reasoning && (
+                    <span className="text-sm text-ink-muted ml-2">{company.analysis.reasoning}</span>
+                  )}
+                </div>
+              )}
+
+              {/* 분석 일시 */}
+              {company.analysis.analyzedAt && (
+                <div className="text-xs text-ink-muted mt-4">
+                  분석 일시: {new Date(company.analysis.analyzedAt).toLocaleString()}
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
 
         <div className="col-span-12">
           {activeTab === 'images' && <ImageGallery companyId={companyId!} />}

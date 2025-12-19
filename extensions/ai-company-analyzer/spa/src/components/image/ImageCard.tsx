@@ -19,7 +19,7 @@ export default function ImageCard({ image, onClick, onDelete }: ImageCardProps) 
           <Spinner size="md" />
         </div>
       ) : thumbnail ? (
-        <img src={thumbnail.base64} alt={CATEGORY_LABELS[image.category || 'unknown']} className="w-full h-full object-cover" />
+        <img src={`data:${thumbnail.mimeType};base64,${thumbnail.base64}`} alt={CATEGORY_LABELS[image.category || 'unknown']} className="w-full h-full object-cover" />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center text-ink-muted">이미지 없음</div>
       )}

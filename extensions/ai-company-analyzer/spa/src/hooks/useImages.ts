@@ -12,11 +12,20 @@ export function useImages(companyId: string | undefined) {
   });
 }
 
-export function useImageData(imageId: string | undefined) {
+export function useImageData(
+  imageId: string | undefined,
+  options?: { includeAnalysis?: boolean }
+) {
   const client = getExtensionClient();
+  const includeAnalysis = options?.includeAnalysis ?? false;
+
   return useQuery({
-    queryKey: queryKeys.imageData(imageId!),
-    queryFn: () => client.send('GET_IMAGE_DATA', { imageId: imageId! }),
+    queryKey: [...queryKeys.imageData(imageId!), includeAnalysis],
+    queryFn: () =>
+      client.send('GET_IMAGE_DATA', {
+        imageId: imageId!,
+        includeAnalysis,
+      }),
     enabled: !!imageId,
     staleTime: Infinity,
     gcTime: 30 * 60_000,

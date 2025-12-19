@@ -1,8 +1,12 @@
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useImages } from '@/hooks/useImages';
+import { useImages, useImageData } from '@/hooks/useImages';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import Spinner from '@/components/ui/Spinner';
+import { CATEGORY_LABELS } from '@shared/constants/categories';
+import type { ImageMetaDTO } from '@shared/types/models';
+import type { ImageSubCategory } from '@shared/constants/categories';
 
 interface AnalysisReportProps {
   companyId: string;
@@ -14,13 +18,6 @@ interface AnalysisData {
   metrics?: Array<{ label: string; value: string | number; trend?: 'up' | 'down' | 'stable' }>;
   sentiment?: 'positive' | 'negative' | 'neutral';
   keywords: string[];
-}
-
-interface CompanyAnalysisSummary {
-  overallSummary: string;
-  strengths: string[];
-  weaknesses: string[];
-  score: number;
 }
 
 export default function AnalysisReport({ companyId }: AnalysisReportProps) {
@@ -54,39 +51,13 @@ export default function AnalysisReport({ companyId }: AnalysisReportProps) {
     );
   }
 
-  // 분석 데이터 수집
-  const analyses: Array<{ imageId: string; data: AnalysisData; category?: string }> = [];
-  for (const img of analyzedImages) {
-    // analysis는 ImageDataDTO를 통해 가져와야 하지만, 지금은 hasAnalysis만 체크
-    // 실제 분석 데이터는 Feature 32 구현 후 사용 가능
-    analyses.push({
-      imageId: img.id,
-      data: {
-        summary: '분석 결과 요약',
-        keyPoints: [],
-        keywords: [],
-      },
-      category: img.category,
-    });
-  }
-
-  // 종합 요약 생성 (실제로는 Extension에서 계산된 값 사용)
-  const summary: CompanyAnalysisSummary | null = analyses.length > 0 ? {
-    overallSummary: `총 ${analyses.length}개의 이미지가 분석되었습니다.`,
-    strengths: [],
-    weaknesses: [],
-    score: 0,
-  } : null;
-
   return (
     <div className="space-y-8">
-      {summary && <SummaryCard summary={summary} />}
-      <KeywordCloud analyses={analyses} />
       <div>
-        <h3 className="headline text-xl mb-4">상세 분석 ({analyses.length}개)</h3>
+        <h3 className="headline text-xl mb-4">상세 분석 ({analyzedImages.length}개)</h3>
         <div className="space-y-4">
-          {analyses.map((analysis, index) => (
-            <AnalysisCard key={analysis.imageId} analysis={analysis} index={index + 1} />
+          {analyzedImages.map((image, index) => (
+            <AnalysisCardWithData key={image.id} image={image} index={index + 1} />
           ))}
         </div>
       </div>
@@ -94,93 +65,49 @@ export default function AnalysisReport({ companyId }: AnalysisReportProps) {
   );
 }
 
-function SummaryCard({ summary }: { summary: CompanyAnalysisSummary }) {
-  return (
-    <Card className="p-6 border-2 border-ink">
-      <h3 className="headline text-xl mb-4">종합 분석</h3>
+// 개별 이미지 분석 데이터를 조회하는 컴포넌트
+function AnalysisCardWithData({ image, index }: { image: ImageMetaDTO; index: number }) {
+  const { data: imageData, isLoading } = useImageData(image.id, { includeAnalysis: true });
 
-      <div className="flex items-center gap-6 mb-6">
-        <div className="text-center">
-          <span className="data-figure text-5xl">{summary.score.toFixed(1)}</span>
-          <span className="block text-ink-muted text-sm">/10</span>
-        </div>
-        <p className="flex-1 text-ink-soft">{summary.overallSummary}</p>
-      </div>
-
-      {(summary.strengths.length > 0 || summary.weaknesses.length > 0) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {summary.strengths.length > 0 && (
-            <div>
-              <h4 className="label text-signal-positive mb-2">강점</h4>
-              <ul className="space-y-1">
-                {summary.strengths.map((s, i) => (
-                  <li key={i} className="text-sm flex items-start gap-2">
-                    <span className="text-signal-positive">+</span>
-                    <span>{s}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {summary.weaknesses.length > 0 && (
-            <div>
-              <h4 className="label text-signal-negative mb-2">약점</h4>
-              <ul className="space-y-1">
-                {summary.weaknesses.map((w, i) => (
-                  <li key={i} className="text-sm flex items-start gap-2">
-                    <span className="text-signal-negative">-</span>
-                    <span>{w}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
-    </Card>
-  );
-}
-
-function KeywordCloud({
-  analyses,
-}: {
-  analyses: Array<{ imageId: string; data: AnalysisData; category?: string }>;
-}) {
-  const keywordFreq = new Map<string, number>();
-  for (const analysis of analyses) {
-    for (const keyword of analysis.data.keywords) {
-      keywordFreq.set(keyword, (keywordFreq.get(keyword) || 0) + 1);
+  const analysisData = useMemo((): AnalysisData | null => {
+    if (!imageData?.analysis) return null;
+    try {
+      const parsed = JSON.parse(imageData.analysis);
+      return {
+        summary: parsed.summary || '',
+        keyPoints: parsed.keyPoints || [],
+        keywords: parsed.keywords || [],
+        sentiment: parsed.sentiment,
+        metrics: parsed.metrics,
+      };
+    } catch {
+      return null;
     }
+  }, [imageData?.analysis]);
+
+  if (isLoading) {
+    return (
+      <Card className="p-6">
+        <div className="flex items-center gap-3">
+          <span className="w-8 h-8 flex items-center justify-center bg-ink text-paper font-bold">
+            {index}
+          </span>
+          <Spinner size="sm" />
+          <span className="text-ink-muted">분석 데이터 로딩 중...</span>
+        </div>
+      </Card>
+    );
   }
-
-  const topKeywords = Array.from(keywordFreq.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 20);
-
-  if (topKeywords.length === 0) {
-    return null;
-  }
-
-  const maxFreq = Math.max(...topKeywords.map((k) => k[1]));
 
   return (
-    <Card className="p-6">
-      <h3 className="headline text-xl mb-4">핵심 키워드</h3>
-      <div className="flex flex-wrap gap-3">
-        {topKeywords.map(([keyword, freq]) => {
-          const size = 0.8 + (freq / maxFreq) * 0.8;
-          return (
-            <span
-              key={keyword}
-              className="px-3 py-1 bg-surface-sunken hover:bg-ink hover:text-paper transition-colors cursor-default"
-              style={{ fontSize: `${size}rem` }}
-            >
-              {keyword}
-            </span>
-          );
-        })}
-      </div>
-    </Card>
+    <AnalysisCard
+      analysis={{
+        imageId: image.id,
+        data: analysisData || { summary: '분석 데이터 없음', keyPoints: [], keywords: [] },
+        category: image.category,
+      }}
+      index={index}
+    />
   );
 }
 
@@ -205,7 +132,11 @@ function AnalysisCard({
             {index}
           </span>
           <div>
-            {analysis.category && <span className="label">{analysis.category}</span>}
+            {analysis.category && (
+              <span className="label">
+                {CATEGORY_LABELS[analysis.category as ImageSubCategory] || analysis.category}
+              </span>
+            )}
           </div>
         </div>
         {analysis.data.sentiment && (
