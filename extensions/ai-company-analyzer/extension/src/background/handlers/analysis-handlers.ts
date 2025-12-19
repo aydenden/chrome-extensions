@@ -1,5 +1,5 @@
 import { registerHandler } from '../external-api';
-import { getImage, updateImageAnalysis } from '@/lib/storage';
+import { getImage, updateImageAnalysis, getCompany, updateCompany } from '@/lib/storage';
 import type { ImageSubCategory } from '@shared/constants/categories';
 
 /**
@@ -67,6 +67,29 @@ export function registerAnalysisHandlers(): void {
     return {
       savedCount: savedIds.length,
       failedIds,
+    };
+  });
+
+  /**
+   * UPDATE_COMPANY_ANALYSIS: 기업 분석 결과 업데이트
+   */
+  registerHandler('UPDATE_COMPANY_ANALYSIS', async (payload) => {
+    const { companyId, analysis } = payload;
+
+    const company = await getCompany(companyId);
+    if (!company) {
+      throw new Error(`Company not found: ${companyId}`);
+    }
+
+    await updateCompany(companyId, {
+      analysis: {
+        ...analysis,
+        analyzedAt: new Date().toISOString(),
+      },
+    });
+
+    return {
+      updatedAt: new Date().toISOString(),
     };
   });
 }
