@@ -32,6 +32,8 @@ interface OllamaContextValue extends OllamaState {
   selectModel: (modelName: string) => void;
   chat: (messages: ChatMessage[], options?: ChatOptions) => Promise<string>;
   analyzeImage: (imageBase64: string, prompt: string, options?: ChatOptions) => Promise<string>;
+  analyzeImageStream: (imageBase64: string, prompt: string, options?: ChatOptions) => AsyncGenerator<string, void, unknown>;
+  unloadModel: () => Promise<void>;
 }
 
 // ============================================================================
@@ -196,6 +198,7 @@ export function OllamaProvider({ children }: OllamaProviderProps) {
         messages,
         stream: false,
         format: options?.format,  // Structured output (JSON Schema)
+        keep_alive: options?.keepAlive ?? -1,  // 기본 무기한 메모리 유지
         options: Object.keys(ollamaOptions).length > 0 ? ollamaOptions : undefined
       })
     });
@@ -221,6 +224,85 @@ export function OllamaProvider({ children }: OllamaProviderProps) {
     }], options);
   }, [chat]);
 
+  // 이미지 분석 (스트리밍) - 토큰 단위로 실시간 반환
+  const analyzeImageStream = useCallback(async function* (
+    imageBase64: string,
+    prompt: string,
+    options?: ChatOptions
+  ): AsyncGenerator<string, void, unknown> {
+    if (!state.selectedModel) throw new Error('모델이 선택되지 않았습니다');
+
+    const ollamaOptions: Record<string, number> = {};
+    if (options?.num_ctx) ollamaOptions.num_ctx = options.num_ctx;
+    if (options?.temperature !== undefined) ollamaOptions.temperature = options.temperature;
+    if (options?.num_predict) ollamaOptions.num_predict = options.num_predict;
+
+    const res = await fetch(`${state.endpoint}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: state.selectedModel,
+        messages: [{
+          role: 'user',
+          content: prompt,
+          images: [imageBase64]
+        }],
+        stream: true,
+        format: options?.format,
+        keep_alive: options?.keepAlive ?? -1,
+        options: Object.keys(ollamaOptions).length > 0 ? ollamaOptions : undefined
+      })
+    });
+
+    if (!res.ok) {
+      throw new Error(`Ollama API 오류: ${res.status}`);
+    }
+
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const json = JSON.parse(line);
+          if (json.message?.content) {
+            yield json.message.content;
+          }
+        } catch {
+          // JSON 파싱 실패 시 무시
+        }
+      }
+    }
+  }, [state.endpoint, state.selectedModel]);
+
+  // 모델 언로드 (세션 종료 시 VRAM 해제)
+  const unloadModel = useCallback(async () => {
+    if (!state.selectedModel) return;
+
+    try {
+      await fetch(`${state.endpoint}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: state.selectedModel,
+          messages: [],
+          keep_alive: 0
+        })
+      });
+    } catch {
+      // 언로드 실패해도 무시 (서버가 이미 꺼져 있을 수 있음)
+    }
+  }, [state.endpoint, state.selectedModel]);
+
   // 초기 연결 확인
   useEffect(() => {
     checkConnection();
@@ -241,7 +323,9 @@ export function OllamaProvider({ children }: OllamaProviderProps) {
       fetchModels,
       selectModel,
       chat,
-      analyzeImage
+      analyzeImage,
+      analyzeImageStream,
+      unloadModel
     }}>
       {children}
     </OllamaContext.Provider>

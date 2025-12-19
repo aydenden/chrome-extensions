@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { PageHeader } from '@/components/layout';
 import Card from '@/components/ui/Card';
@@ -11,6 +11,7 @@ import { useCompany } from '@/hooks/useCompanies';
 import { getExtensionClient } from '@/lib/extension-client';
 import { CATEGORY_LABELS } from '@shared/constants/categories';
 import type { ImageSubCategory } from '@shared/constants/categories';
+import { optimizeImageForVLM } from '@/lib/image';
 
 type AnalysisStep = 'init' | 'loading-images' | 'analyzing' | 'saving' | 'done' | 'error';
 
@@ -33,9 +34,24 @@ export default function Analysis() {
   const client = getExtensionClient();
 
   // Hooks
-  const { analyzeImage, isConnected: ollamaConnected, selectedModel } = useOllama();
+  const { analyzeImage, isConnected: ollamaConnected, selectedModel, endpoint } = useOllama();
   const { data: company } = useCompany(companyId);
   const { data: images } = useImages(companyId);
+
+  // 세션 종료 시 모델 언로드 (VRAM 해제)
+  useEffect(() => {
+    const handleUnload = () => {
+      if (!selectedModel) return;
+      // Beacon API로 비동기 요청 (탭 닫힘에도 전송 보장)
+      navigator.sendBeacon(
+        `${endpoint}/api/chat`,
+        JSON.stringify({ model: selectedModel, messages: [], keep_alive: 0 })
+      );
+    };
+
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
+  }, [endpoint, selectedModel]);
 
   // State
   const [stepProgress, setStepProgress] = useState<StepProgress>({
@@ -141,11 +157,15 @@ export default function Analysis() {
         if (abortControllerRef.current.signal.aborted) throw new Error('중단됨');
 
         const imageData = await client.send('GET_IMAGE_DATA', { imageId: images[i].id });
+
+        // VLM 최적화: 32배수 정렬 + JPEG 압축 (페이로드 50~100배 감소)
+        const optimizedBase64 = await optimizeImageForVLM(imageData.base64);
+
         imageDataList.push({
           id: imageData.id,
-          base64: imageData.base64,
+          base64: optimizedBase64,
         });
-        setStepProgress({ step: 'loading-images', current: i + 1, total: images.length, message: `이미지 ${i + 1}/${images.length} 로드 중...` });
+        setStepProgress({ step: 'loading-images', current: i + 1, total: images.length, message: `이미지 ${i + 1}/${images.length} 최적화 중...` });
       }
 
       // Step 2: Ollama로 직접 분석 (OCR 없이)
