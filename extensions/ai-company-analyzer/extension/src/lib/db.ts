@@ -12,6 +12,15 @@ export interface Company {
     employeeCount?: string;
     foundedYear?: string;
   };
+  analysis?: {
+    score?: number;
+    summary?: string;
+    strengths?: string[];
+    weaknesses?: string[];
+    recommendation?: 'recommend' | 'neutral' | 'not_recommend';
+    reasoning?: string;
+    analyzedAt?: string;
+  };
   createdAt: Date;
   updatedAt: Date;
 }

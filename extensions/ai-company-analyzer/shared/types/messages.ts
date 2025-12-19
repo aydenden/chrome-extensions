@@ -19,6 +19,7 @@ export type MessageType =
   | 'DELETE_IMAGE'
   | 'SAVE_ANALYSIS'
   | 'BATCH_SAVE_ANALYSIS'
+  | 'UPDATE_COMPANY_ANALYSIS'
   | 'PING'
   | 'GET_STATS';
 
@@ -63,6 +64,17 @@ export interface MessagePayload {
       analysis: string;
     }>;
   };
+  UPDATE_COMPANY_ANALYSIS: {
+    companyId: string;
+    analysis: {
+      score: number;
+      summary: string;
+      strengths: string[];
+      weaknesses: string[];
+      recommendation: 'recommend' | 'neutral' | 'not_recommend';
+      reasoning: string;
+    };
+  };
   PING: undefined;
   GET_STATS: undefined;
 }
@@ -83,6 +95,7 @@ export interface MessageResponse {
   DELETE_IMAGE: null;
   SAVE_ANALYSIS: { updatedAt: string };
   BATCH_SAVE_ANALYSIS: { savedCount: number; failedIds: string[] };
+  UPDATE_COMPANY_ANALYSIS: { updatedAt: string };
   PING: { version: string; timestamp: string };
   GET_STATS: StatsDTO;
 }
@@ -98,6 +111,7 @@ export type ExtensionRequest =
   | { type: 'DELETE_IMAGE'; payload: MessagePayload['DELETE_IMAGE'] }
   | { type: 'SAVE_ANALYSIS'; payload: MessagePayload['SAVE_ANALYSIS'] }
   | { type: 'BATCH_SAVE_ANALYSIS'; payload: MessagePayload['BATCH_SAVE_ANALYSIS'] }
+  | { type: 'UPDATE_COMPANY_ANALYSIS'; payload: MessagePayload['UPDATE_COMPANY_ANALYSIS'] }
   | { type: 'PING' }
   | { type: 'GET_STATS' };
 

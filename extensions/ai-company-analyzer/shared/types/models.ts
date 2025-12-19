@@ -22,9 +22,11 @@ export interface CompanyDetailDTO extends CompanyDTO {
   };
   analysis?: {
     score?: number;
-    runway?: string;
-    riskLevel?: 'low' | 'medium' | 'high';
     summary?: string;
+    strengths?: string[];
+    weaknesses?: string[];
+    recommendation?: 'recommend' | 'neutral' | 'not_recommend';
+    reasoning?: string;
     analyzedAt?: string;
   };
 }
