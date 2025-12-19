@@ -185,10 +185,16 @@ export function OllamaProvider({ children }: OllamaProviderProps) {
     if (!state.selectedModel) throw new Error('모델이 선택되지 않았습니다');
 
     // 옵션 구성 (설정된 값만 포함)
-    const ollamaOptions: Record<string, number> = {};
+    const ollamaOptions: Record<string, number | boolean> = {};
+    // 기본 옵션
     if (options?.num_ctx) ollamaOptions.num_ctx = options.num_ctx;
     if (options?.temperature !== undefined) ollamaOptions.temperature = options.temperature;
     if (options?.num_predict) ollamaOptions.num_predict = options.num_predict;
+    // 성능 최적화 옵션
+    if (options?.num_gpu !== undefined) ollamaOptions.num_gpu = options.num_gpu;
+    if (options?.num_batch !== undefined) ollamaOptions.num_batch = options.num_batch;
+    if (options?.use_mmap !== undefined) ollamaOptions.use_mmap = options.use_mmap;
+    if (options?.use_mlock !== undefined) ollamaOptions.use_mlock = options.use_mlock;
 
     const res = await fetch(`${state.endpoint}/api/chat`, {
       method: 'POST',
@@ -232,10 +238,16 @@ export function OllamaProvider({ children }: OllamaProviderProps) {
   ): AsyncGenerator<string, void, unknown> {
     if (!state.selectedModel) throw new Error('모델이 선택되지 않았습니다');
 
-    const ollamaOptions: Record<string, number> = {};
+    const ollamaOptions: Record<string, number | boolean> = {};
+    // 기본 옵션
     if (options?.num_ctx) ollamaOptions.num_ctx = options.num_ctx;
     if (options?.temperature !== undefined) ollamaOptions.temperature = options.temperature;
     if (options?.num_predict) ollamaOptions.num_predict = options.num_predict;
+    // 성능 최적화 옵션
+    if (options?.num_gpu !== undefined) ollamaOptions.num_gpu = options.num_gpu;
+    if (options?.num_batch !== undefined) ollamaOptions.num_batch = options.num_batch;
+    if (options?.use_mmap !== undefined) ollamaOptions.use_mmap = options.use_mmap;
+    if (options?.use_mlock !== undefined) ollamaOptions.use_mlock = options.use_mlock;
 
     const res = await fetch(`${state.endpoint}/api/chat`, {
       method: 'POST',

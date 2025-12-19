@@ -66,6 +66,7 @@ export class MockHandler implements IExtensionHandler {
       DELETE_IMAGE: () => null,
       SAVE_ANALYSIS: () => ({ updatedAt: new Date().toISOString() }),
       BATCH_SAVE_ANALYSIS: () => ({ savedCount: 1, failedIds: [] }),
+      UPDATE_COMPANY_ANALYSIS: () => ({ updatedAt: new Date().toISOString() }),
       PING: () => ({
         version: '1.0.0-mock',
         timestamp: new Date().toISOString(),

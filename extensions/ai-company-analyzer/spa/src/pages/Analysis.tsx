@@ -12,8 +12,9 @@ import { getExtensionClient } from '@/lib/extension-client';
 import { CATEGORY_LABELS } from '@shared/constants/categories';
 import type { ImageSubCategory } from '@shared/constants/categories';
 import { optimizeImageForVLM } from '@/lib/image';
+import { generateSynthesis, type SynthesisResult } from '@/lib/analysis/synthesis';
 
-type AnalysisStep = 'init' | 'loading-images' | 'analyzing' | 'saving' | 'done' | 'error';
+type AnalysisStep = 'init' | 'loading-images' | 'analyzing' | 'synthesizing' | 'saving' | 'done' | 'error';
 
 interface StepProgress {
   step: AnalysisStep;
@@ -63,7 +64,10 @@ export default function Analysis() {
   const [isRunning, setIsRunning] = useState(false);
   const [results, setResults] = useState<AnalysisResultItem[]>([]);
   const [completedImageIds, setCompletedImageIds] = useState<Set<string>>(new Set());
+  const [failedImageIds, setFailedImageIds] = useState<Set<string>>(new Set());
+  const [synthesis, setSynthesis] = useState<SynthesisResult | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const analysisResultsRef = useRef<AnalysisResultItem[]>([]);
 
   // JSON Schema for structured output (모델 무관 일관된 출력 보장)
   const ANALYSIS_SCHEMA = {
@@ -112,10 +116,11 @@ export default function Analysis() {
   const calculateOverallProgress = (): number => {
     if (stepProgress.total === 0) return 0;
 
-    const stepWeights = {
+    const stepWeights: Record<AnalysisStep, number> = {
       'init': 0,
-      'loading-images': 10,
-      'analyzing': 80,
+      'loading-images': 5,
+      'analyzing': 70,
+      'synthesizing': 15,
       'saving': 10,
       'done': 100,
       'error': 0,
@@ -123,7 +128,7 @@ export default function Analysis() {
 
     const baseProgress = stepWeights[stepProgress.step] || 0;
     if (stepProgress.step === 'analyzing' && stepProgress.total > 0) {
-      return baseProgress + ((stepProgress.current / stepProgress.total) * 80);
+      return 5 + ((stepProgress.current / stepProgress.total) * 70);
     }
     return baseProgress;
   };
@@ -146,6 +151,9 @@ export default function Analysis() {
     setIsRunning(true);
     setResults([]);
     setCompletedImageIds(new Set());
+    setFailedImageIds(new Set());
+    setSynthesis(null);
+    analysisResultsRef.current = [];
     abortControllerRef.current = new AbortController();
 
     try {
@@ -154,7 +162,14 @@ export default function Analysis() {
 
       const imageDataList: Array<{ id: string; base64: string }> = [];
       for (let i = 0; i < images.length; i++) {
-        if (abortControllerRef.current.signal.aborted) throw new Error('중단됨');
+        if (abortControllerRef.current.signal.aborted) {
+          // 중단 시 현재까지 결과 저장
+          if (analysisResultsRef.current.length > 0) {
+            const saveResult = await client.send('BATCH_SAVE_ANALYSIS', { results: analysisResultsRef.current });
+            throw new Error(`중단됨 (${saveResult.savedCount}개 저장)`);
+          }
+          throw new Error('중단됨');
+        }
 
         const imageData = await client.send('GET_IMAGE_DATA', { imageId: images[i].id });
 
@@ -171,66 +186,159 @@ export default function Analysis() {
       // Step 2: Ollama로 직접 분석 (OCR 없이)
       setStepProgress({ step: 'analyzing', current: 0, total: images.length, message: 'AI 분석 시작...' });
 
-      const analysisResults: AnalysisResultItem[] = [];
-
-      // 최적화 옵션: 낮은 temperature + 출력 토큰 제한 + structured output
-      const analysisOptions = { temperature: 0.3, num_predict: 1024, format: ANALYSIS_SCHEMA };
+      // 최적화 옵션: 자원 최대 활용 + 속도 최적화
+      const analysisOptions = {
+        temperature: 0.3,
+        num_predict: 1024,
+        num_gpu: 999,       // GPU 레이어 최대 활용
+        num_ctx: 8192,      // 큰 Context window
+        num_batch: 512,     // 배치 크기 증가 (프롬프트 병렬 처리)
+        use_mmap: true,     // 메모리 매핑 활성화
+        use_mlock: true,    // 메모리 잠금 (스왑 방지)
+        format: ANALYSIS_SCHEMA,
+      };
 
       for (let i = 0; i < imageDataList.length; i++) {
-        if (abortControllerRef.current.signal.aborted) throw new Error('중단됨');
+        // 중단 체크 - 저장 후 throw
+        if (abortControllerRef.current.signal.aborted) {
+          if (analysisResultsRef.current.length > 0) {
+            const saveResult = await client.send('BATCH_SAVE_ANALYSIS', { results: analysisResultsRef.current });
+            throw new Error(`중단됨 (${saveResult.savedCount}개 저장)`);
+          }
+          throw new Error('중단됨');
+        }
 
         const { id, base64 } = imageDataList[i];
 
-        // 통합 분석 (분류 + 분석을 1단계로, /no_think로 thinking 비활성화)
-        const prompt = UNIFIED_ANALYSIS_PROMPT.replace('{{COMPANY_NAME}}', company?.name || '');
-        const result = await analyzeImage(base64, prompt, analysisOptions);
-        const analysis = parseJSON(result);
+        try {
+          // 개별 이미지 분석 (에러 격리)
+          const prompt = UNIFIED_ANALYSIS_PROMPT.replace('{{COMPANY_NAME}}', company?.name || '');
+          const result = await analyzeImage(base64, prompt, analysisOptions);
+          const analysis = parseJSON(result);
 
-        // 유효한 카테고리인지 확인
-        const validCategories: ImageSubCategory[] = [
-          'revenue_trend', 'balance_sheet', 'income_statement',
-          'employee_trend', 'review_positive', 'review_negative',
-          'company_overview', 'unknown'
-        ];
-        const category = validCategories.includes(analysis?.category)
-          ? analysis.category as ImageSubCategory
-          : 'unknown';
+          // 유효한 카테고리인지 확인
+          const validCategories: ImageSubCategory[] = [
+            'revenue_trend', 'balance_sheet', 'income_statement',
+            'employee_trend', 'review_positive', 'review_negative',
+            'company_overview', 'unknown'
+          ];
+          const category = validCategories.includes(analysis?.category)
+            ? analysis.category as ImageSubCategory
+            : 'unknown';
 
-        const resultItem: AnalysisResultItem = {
-          imageId: id,
-          category,
-          rawText: analysis?.extractedText || '',
-          analysis: JSON.stringify(analysis, null, 2),
-        };
+          const resultItem: AnalysisResultItem = {
+            imageId: id,
+            category,
+            rawText: analysis?.extractedText || '',
+            analysis: JSON.stringify(analysis, null, 2),
+          };
 
-        analysisResults.push(resultItem);
+          analysisResultsRef.current.push(resultItem);
+          setCompletedImageIds(prev => new Set([...prev, id]));
 
+        } catch (imageError) {
+          // 개별 이미지 에러 시 로그 남기고 계속 진행
+          console.error(`이미지 ${id} 분석 실패:`, imageError);
+
+          // 실패한 이미지도 결과에 추가 (에러 상태로)
+          analysisResultsRef.current.push({
+            imageId: id,
+            category: 'unknown' as ImageSubCategory,
+            rawText: '',
+            analysis: JSON.stringify({ error: imageError instanceof Error ? imageError.message : '분석 실패' }),
+          });
+
+          setFailedImageIds(prev => new Set([...prev, id]));
+        }
+
+        // 진행률 업데이트는 항상 실행
         setStepProgress({
           step: 'analyzing',
           current: i + 1,
           total: images.length,
-          message: `AI 분석 ${i + 1}/${images.length} (${id.substring(0, 8)}...)`,
+          message: `AI 분석 ${i + 1}/${images.length}`,
         });
-
-        // 실시간으로 완료된 이미지 표시
-        setCompletedImageIds(prev => new Set([...prev, id]));
       }
 
-      setResults(analysisResults);
-      setCompletedImageIds(new Set(analysisResults.map(r => r.imageId)));
+      setResults([...analysisResultsRef.current]);
 
-      // Step 3: 결과 저장
+      // Step 3: 종합 분석 (Phase 2)
+      if (analysisResultsRef.current.length > 0 && !abortControllerRef.current?.signal.aborted) {
+        setStepProgress({ step: 'synthesizing', current: 0, total: 1, message: '종합 분석 생성 중...' });
+
+        const { chat } = await import('@/contexts/OllamaContext').then(() => {
+          // Ollama API 직접 호출
+          return {
+            chat: async (messages: Array<{ role: string; content: string }>, options?: any) => {
+              // 이미지 없이 텍스트만 전송
+              const requestBody = {
+                model: selectedModel,
+                messages,
+                stream: false,
+                options: {
+                  num_ctx: options?.num_ctx || 8192,
+                  temperature: options?.temperature || 0.3,
+                  num_predict: options?.num_predict || 2048,
+                  num_gpu: 999,   // GPU 레이어 최대 활용
+                },
+                format: options?.format ? 'json' : undefined,  // schema 대신 'json' 사용
+              };
+
+              console.log('[Synthesis] 요청:', JSON.stringify(requestBody, null, 2));
+
+              const response = await fetch(`${endpoint}/api/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody),
+              });
+              const data = await response.json();
+
+              console.log('[Synthesis] 응답:', JSON.stringify(data, null, 2));
+
+              // 응답에서 content 추출 (여러 위치 시도)
+              const content = data.message?.content || data.response || data.content || '';
+              if (!content) {
+                console.error('[Synthesis] content가 비어있음. 전체 응답:', data);
+              }
+              return content;
+            }
+          };
+        });
+
+        const synthesisResult = await generateSynthesis(
+          company?.name || '',
+          analysisResultsRef.current,
+          chat
+        );
+
+        if (synthesisResult) {
+          setSynthesis(synthesisResult);
+
+          // 종합 분석 결과 저장
+          await client.send('UPDATE_COMPANY_ANALYSIS', {
+            companyId: companyId!,
+            analysis: synthesisResult,
+          });
+        }
+      }
+
+      // Step 4: 개별 결과 저장
       setStepProgress({ step: 'saving', current: 0, total: 1, message: '분석 결과 저장 중...' });
 
       const saveResult = await client.send('BATCH_SAVE_ANALYSIS', {
-        results: analysisResults,
+        results: analysisResultsRef.current,
       });
 
       if (saveResult.failedIds.length > 0) {
         console.warn('일부 저장 실패:', saveResult.failedIds);
       }
 
-      setStepProgress({ step: 'done', current: analysisResults.length, total: analysisResults.length, message: `분석 완료! (${saveResult.savedCount}개 저장)` });
+      setStepProgress({
+        step: 'done',
+        current: analysisResultsRef.current.length,
+        total: analysisResultsRef.current.length,
+        message: `분석 완료! (${saveResult.savedCount}개 저장, ${failedImageIds.size}개 실패)`
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : '알 수 없는 오류';
       setStepProgress({ step: 'error', current: 0, total: 0, message });
@@ -310,17 +418,23 @@ export default function Analysis() {
               <StepIndicator
                 label="1. 이미지 로딩"
                 isActive={stepProgress.step === 'loading-images'}
-                isDone={['analyzing', 'saving', 'done'].includes(stepProgress.step)}
+                isDone={['analyzing', 'synthesizing', 'saving', 'done'].includes(stepProgress.step)}
                 isError={stepProgress.step === 'error' && stepProgress.message.includes('로드')}
               />
               <StepIndicator
-                label="2. AI 분석 (분류 + 분석)"
+                label="2. AI 분석 (개별)"
                 isActive={stepProgress.step === 'analyzing'}
-                isDone={['saving', 'done'].includes(stepProgress.step)}
+                isDone={['synthesizing', 'saving', 'done'].includes(stepProgress.step)}
                 isError={stepProgress.step === 'error' && stepProgress.message.includes('분석')}
               />
               <StepIndicator
-                label="3. 결과 저장"
+                label="3. 종합 분석"
+                isActive={stepProgress.step === 'synthesizing'}
+                isDone={['saving', 'done'].includes(stepProgress.step)}
+                isError={stepProgress.step === 'error' && stepProgress.message.includes('종합')}
+              />
+              <StepIndicator
+                label="4. 결과 저장"
                 isActive={stepProgress.step === 'saving'}
                 isDone={stepProgress.step === 'done'}
                 isError={stepProgress.step === 'error' && stepProgress.message.includes('저장')}
@@ -362,11 +476,14 @@ export default function Analysis() {
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {images.map((image) => {
                   const isCompleted = completedImageIds.has(image.id);
+                  const isFailed = failedImageIds.has(image.id);
                   return (
                     <div
                       key={image.id}
                       className={`p-3 border-2 transition-colors ${
-                        isCompleted
+                        isFailed
+                          ? 'border-signal-negative bg-red-50'
+                          : isCompleted
                           ? 'border-signal-positive bg-green-50'
                           : 'border-border-subtle bg-surface-elevated'
                       }`}
@@ -377,8 +494,11 @@ export default function Analysis() {
                       <div className="text-xs text-ink-muted">
                         {(image.size / 1024).toFixed(1)} KB
                       </div>
-                      {isCompleted && (
+                      {isCompleted && !isFailed && (
                         <div className="mt-2 text-xs text-signal-positive font-semibold">완료</div>
+                      )}
+                      {isFailed && (
+                        <div className="mt-2 text-xs text-signal-negative font-semibold">실패</div>
                       )}
                     </div>
                   );
@@ -388,11 +508,62 @@ export default function Analysis() {
           </div>
         )}
 
+        {/* 종합 분석 결과 */}
+        {synthesis && (
+          <div className="col-span-12">
+            <Card className="p-6">
+              <h2 className="headline text-xl mb-4">AI 종합 분석</h2>
+
+              {/* 점수 */}
+              <div className="flex items-center gap-4 mb-4">
+                <div className="text-4xl font-bold">{synthesis.score}</div>
+                <div className="text-sm text-ink-muted">/ 100</div>
+              </div>
+
+              {/* 요약 */}
+              <p className="text-ink mb-4">{synthesis.summary}</p>
+
+              {/* 강점/약점 */}
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-signal-positive mb-2">강점</h3>
+                  <ul className="text-sm space-y-1">
+                    {synthesis.strengths?.map((s, i) => (
+                      <li key={i}>• {s}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-signal-negative mb-2">약점</h3>
+                  <ul className="text-sm space-y-1">
+                    {synthesis.weaknesses?.map((w, i) => (
+                      <li key={i}>• {w}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              {/* 추천 */}
+              <div className="p-3 bg-surface-sunken">
+                <span className={`font-semibold ${
+                  synthesis.recommendation === 'recommend' ? 'text-signal-positive' :
+                  synthesis.recommendation === 'not_recommend' ? 'text-signal-negative' :
+                  'text-ink-muted'
+                }`}>
+                  {synthesis.recommendation === 'recommend' ? '추천' :
+                   synthesis.recommendation === 'not_recommend' ? '비추천' : '중립'}
+                </span>
+                <span className="text-sm text-ink-muted ml-2">{synthesis.reasoning}</span>
+              </div>
+            </Card>
+          </div>
+        )}
+
         {/* 분석 결과 미리보기 */}
         {results.length > 0 && (
           <div className="col-span-12">
             <Card className="p-6">
-              <h2 className="headline text-xl mb-4">분석 결과 ({results.length}개)</h2>
+              <h2 className="headline text-xl mb-4">개별 분석 결과 ({results.length}개)</h2>
               <div className="space-y-4 max-h-96 overflow-y-auto">
                 {results.map((result, idx) => (
                   <div key={result.imageId} className="p-4 bg-surface-sunken">
