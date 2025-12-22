@@ -2,6 +2,12 @@
 
 이 문서는 `ai-company-analyzer` 프로젝트에서 배울 수 있는 주요 아키텍처 패턴과 AI 분석 기법을 정리합니다.
 
+## 프로젝트 배경
+
+> **먼저 읽어보세요**: [브라우저 AI에서 Ollama까지의 여정](./00-browser-ai-to-ollama-journey.md)
+>
+> Chrome 빌트인 AI → WebGPU → Ollama로 전환한 과정과 각 기술의 한계를 설명합니다.
+
 ## 전체 아키텍처 개요
 
 ```mermaid
