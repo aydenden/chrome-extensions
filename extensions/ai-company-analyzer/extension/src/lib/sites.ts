@@ -55,6 +55,14 @@ export const SITES: SiteConfig[] = [
     urlPattern: /(www\.)?teamblind\.com\/company\/.+/,
     selectors: { companyName: 'h1.company-name' },
   },
+  {
+    type: 'SMES',
+    name: '벤처확인시스템',
+    urlPattern: /(www\.)?smes\.go\.kr\/venturein\/.+/,
+    selectors: {
+      companyName: '#real_contents .board_tab_con_box > div:first-child table tbody tr:first-child td',
+    },
+  },
 ];
 
 export function detectSite(url: string): SiteConfig | null {

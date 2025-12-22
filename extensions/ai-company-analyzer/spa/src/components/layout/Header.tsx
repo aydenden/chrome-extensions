@@ -49,8 +49,8 @@ export default function Header({ isConnected = false }: HeaderProps) {
             </div>
             <Link
               to="/settings"
-              className={`w-8 h-8 flex items-center justify-center border-2 ${
-                isSettingsPage ? 'bg-ink text-paper' : 'border-ink text-ink hover:bg-ink hover:text-paper'
+              className={`w-8 h-8 flex items-center justify-center rounded-sm ${
+                isSettingsPage ? 'bg-ink text-paper' : 'text-ink hover:bg-ink/10'
               } transition-colors`}
               aria-label="설정"
             >

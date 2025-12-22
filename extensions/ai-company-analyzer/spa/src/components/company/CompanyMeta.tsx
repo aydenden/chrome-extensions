@@ -38,8 +38,22 @@ export default function CompanyMeta({ company }: CompanyMetaProps) {
         </div>
         <div>
           <p className="text-sm text-ink-muted mb-1">분석 상태</p>
-          <p className="text-2xl font-bold text-ink">
-            {company.analyzedCount > 0 ? (
+          <p className="text-2xl font-bold">
+            {company.analysis?.score != null ? (
+              <>
+                <span className="text-ink">{company.analysis.score}점</span>
+                {company.analysis.recommendation && (
+                  <span className={`text-lg ml-2 ${
+                    company.analysis.recommendation === 'recommend' ? 'text-signal-positive' :
+                    company.analysis.recommendation === 'not_recommend' ? 'text-signal-negative' :
+                    'text-ink-muted'
+                  }`}>
+                    {company.analysis.recommendation === 'recommend' ? '추천' :
+                     company.analysis.recommendation === 'not_recommend' ? '비추천' : '중립'}
+                  </span>
+                )}
+              </>
+            ) : company.analyzedCount > 0 ? (
               <span className="text-signal-positive">완료</span>
             ) : (
               <span className="text-ink-muted">미완료</span>

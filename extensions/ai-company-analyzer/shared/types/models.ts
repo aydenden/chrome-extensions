@@ -9,6 +9,8 @@ export interface CompanyDTO {
   dataSources: DataType[];
   imageCount: number;
   analyzedCount: number;
+  analysisScore?: number;
+  analysisRecommendation?: 'recommend' | 'neutral' | 'not_recommend';
   createdAt: string;
   updatedAt: string;
 }

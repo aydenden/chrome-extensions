@@ -26,7 +26,6 @@ export default function PageHeader({ title, subtitle, backTo, actions }: PageHea
           </div>
           {actions && <div className="flex items-center gap-3">{actions}</div>}
         </div>
-        <div className="mt-4 h-0.5 bg-ink" />
       </div>
     </div>
   );

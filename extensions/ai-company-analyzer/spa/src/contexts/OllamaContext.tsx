@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import { getSettings, saveSettings } from '@/lib/settings';
-import type { ChatMessage, ChatOptions } from '@/lib/ai/types';
+import type { ChatMessage, ChatOptions, StreamOptions, StreamChunk, StreamResult } from '@/lib/ai/types';
+import { StreamBuffer, parseStreamLine } from '@/lib/ai/stream-parser';
 
 // ============================================================================
 // Types
@@ -31,8 +32,9 @@ interface OllamaContextValue extends OllamaState {
   fetchModels: () => Promise<void>;
   selectModel: (modelName: string) => void;
   chat: (messages: ChatMessage[], options?: ChatOptions) => Promise<string>;
+  chatStream: (messages: ChatMessage[], options?: StreamOptions) => AsyncGenerator<StreamChunk, StreamResult, unknown>;
   analyzeImage: (imageBase64: string, prompt: string, options?: ChatOptions) => Promise<string>;
-  analyzeImageStream: (imageBase64: string, prompt: string, options?: ChatOptions) => AsyncGenerator<string, void, unknown>;
+  analyzeImageStream: (imageBase64: string, prompt: string, options?: StreamOptions) => AsyncGenerator<StreamChunk, StreamResult, unknown>;
   unloadModel: () => Promise<void>;
 }
 
@@ -217,6 +219,97 @@ export function OllamaProvider({ children }: OllamaProviderProps) {
     return data.message.content;
   }, [state.endpoint, state.selectedModel]);
 
+  // 채팅 스트리밍 (thinking/content 분리 지원)
+  const chatStream = useCallback(async function* (
+    messages: ChatMessage[],
+    options?: StreamOptions
+  ): AsyncGenerator<StreamChunk, StreamResult, unknown> {
+    if (!state.selectedModel) throw new Error('모델이 선택되지 않았습니다');
+
+    const ollamaOptions: Record<string, number | boolean> = {};
+    if (options?.num_ctx) ollamaOptions.num_ctx = options.num_ctx;
+    if (options?.temperature !== undefined) ollamaOptions.temperature = options.temperature;
+    if (options?.num_predict) ollamaOptions.num_predict = options.num_predict;
+    if (options?.num_gpu !== undefined) ollamaOptions.num_gpu = options.num_gpu;
+    if (options?.num_batch !== undefined) ollamaOptions.num_batch = options.num_batch;
+    if (options?.use_mmap !== undefined) ollamaOptions.use_mmap = options.use_mmap;
+    if (options?.use_mlock !== undefined) ollamaOptions.use_mlock = options.use_mlock;
+
+    const res = await fetch(`${state.endpoint}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: state.selectedModel,
+        messages,
+        stream: true,
+        think: options?.think ?? true,  // thinking 모드 기본 활성화
+        keep_alive: options?.keepAlive ?? -1,
+        options: Object.keys(ollamaOptions).length > 0 ? ollamaOptions : undefined
+        // format 제거 - thinking과 충돌
+      }),
+      signal: options?.abortSignal,
+    });
+
+    if (!res.ok) {
+      throw new Error(`Ollama API 오류: ${res.status}`);
+    }
+
+    const reader = res.body!.getReader();
+    const buffer = new StreamBuffer();
+
+    let accumulatedThinking = '';
+    let accumulatedContent = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const lines = buffer.append(value);
+
+      for (const line of lines) {
+        const parsed = parseStreamLine(line);
+        if (!parsed) continue;
+
+        // thinking 필드 처리
+        if (parsed.thinking) {
+          accumulatedThinking += parsed.thinking;
+          options?.onThinking?.(parsed.thinking, accumulatedThinking);
+          yield {
+            type: 'thinking',
+            text: parsed.thinking,
+            accumulated: { thinking: accumulatedThinking, content: accumulatedContent }
+          };
+        }
+
+        // content 필드 처리
+        if (parsed.content) {
+          accumulatedContent += parsed.content;
+          options?.onContent?.(parsed.content, accumulatedContent);
+          yield {
+            type: 'content',
+            text: parsed.content,
+            accumulated: { thinking: accumulatedThinking, content: accumulatedContent }
+          };
+        }
+
+        // 완료 처리
+        if (parsed.done) {
+          yield {
+            type: 'done',
+            text: '',
+            accumulated: { thinking: accumulatedThinking, content: accumulatedContent }
+          };
+        }
+      }
+    }
+
+    return {
+      thinking: accumulatedThinking,
+      content: accumulatedContent,
+      success: true
+    };
+  }, [state.endpoint, state.selectedModel]);
+
   // 이미지 분석 (종합 분석 시 num_ctx: 8192 권장)
   const analyzeImage = useCallback(async (
     imageBase64: string,
@@ -230,20 +323,18 @@ export function OllamaProvider({ children }: OllamaProviderProps) {
     }], options);
   }, [chat]);
 
-  // 이미지 분석 (스트리밍) - 토큰 단위로 실시간 반환
+  // 이미지 분석 (스트리밍) - thinking/content 분리 지원
   const analyzeImageStream = useCallback(async function* (
     imageBase64: string,
     prompt: string,
-    options?: ChatOptions
-  ): AsyncGenerator<string, void, unknown> {
+    options?: StreamOptions
+  ): AsyncGenerator<StreamChunk, StreamResult, unknown> {
     if (!state.selectedModel) throw new Error('모델이 선택되지 않았습니다');
 
     const ollamaOptions: Record<string, number | boolean> = {};
-    // 기본 옵션
     if (options?.num_ctx) ollamaOptions.num_ctx = options.num_ctx;
     if (options?.temperature !== undefined) ollamaOptions.temperature = options.temperature;
     if (options?.num_predict) ollamaOptions.num_predict = options.num_predict;
-    // 성능 최적화 옵션
     if (options?.num_gpu !== undefined) ollamaOptions.num_gpu = options.num_gpu;
     if (options?.num_batch !== undefined) ollamaOptions.num_batch = options.num_batch;
     if (options?.use_mmap !== undefined) ollamaOptions.use_mmap = options.use_mmap;
@@ -260,10 +351,12 @@ export function OllamaProvider({ children }: OllamaProviderProps) {
           images: [imageBase64]
         }],
         stream: true,
-        format: options?.format,
+        think: options?.think ?? true,  // thinking 모드 기본 활성화
         keep_alive: options?.keepAlive ?? -1,
         options: Object.keys(ollamaOptions).length > 0 ? ollamaOptions : undefined
-      })
+        // format 제거 - thinking과 충돌
+      }),
+      signal: options?.abortSignal,
     });
 
     if (!res.ok) {
@@ -271,29 +364,56 @@ export function OllamaProvider({ children }: OllamaProviderProps) {
     }
 
     const reader = res.body!.getReader();
-    const decoder = new TextDecoder('utf-8');
-    let buffer = '';
+    const buffer = new StreamBuffer();
+
+    let accumulatedThinking = '';
+    let accumulatedContent = '';
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+      const lines = buffer.append(value);
 
       for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const json = JSON.parse(line);
-          if (json.message?.content) {
-            yield json.message.content;
-          }
-        } catch {
-          // JSON 파싱 실패 시 무시
+        const parsed = parseStreamLine(line);
+        if (!parsed) continue;
+
+        if (parsed.thinking) {
+          accumulatedThinking += parsed.thinking;
+          options?.onThinking?.(parsed.thinking, accumulatedThinking);
+          yield {
+            type: 'thinking',
+            text: parsed.thinking,
+            accumulated: { thinking: accumulatedThinking, content: accumulatedContent }
+          };
+        }
+
+        if (parsed.content) {
+          accumulatedContent += parsed.content;
+          options?.onContent?.(parsed.content, accumulatedContent);
+          yield {
+            type: 'content',
+            text: parsed.content,
+            accumulated: { thinking: accumulatedThinking, content: accumulatedContent }
+          };
+        }
+
+        if (parsed.done) {
+          yield {
+            type: 'done',
+            text: '',
+            accumulated: { thinking: accumulatedThinking, content: accumulatedContent }
+          };
         }
       }
     }
+
+    return {
+      thinking: accumulatedThinking,
+      content: accumulatedContent,
+      success: true
+    };
   }, [state.endpoint, state.selectedModel]);
 
   // 모델 언로드 (세션 종료 시 VRAM 해제)
@@ -335,6 +455,7 @@ export function OllamaProvider({ children }: OllamaProviderProps) {
       fetchModels,
       selectModel,
       chat,
+      chatStream,
       analyzeImage,
       analyzeImageStream,
       unloadModel

@@ -168,7 +168,7 @@ export default function CompanyDetail() {
 
         <div className="col-span-12">
           {activeTab === 'images' && <ImageGallery companyId={companyId!} />}
-          {activeTab === 'analysis' && <AnalysisReport companyId={companyId!} />}
+          {activeTab === 'analysis' && <AnalysisReport companyId={companyId!} synthesis={company.analysis} />}
         </div>
       </div>
 

@@ -20,6 +20,8 @@ async function toCompanyDTO(company: any) {
     dataSources,
     imageCount: images.length,
     analyzedCount,
+    analysisScore: company.analysis?.score,
+    analysisRecommendation: company.analysis?.recommendation,
     createdAt: company.createdAt.toISOString(),
     updatedAt: company.updatedAt.toISOString(),
   };
@@ -30,6 +32,7 @@ async function toCompanyDetailDTO(company: any) {
   return {
     ...dto,
     metadata: company.metadata,
+    analysis: company.analysis,
   };
 }
 

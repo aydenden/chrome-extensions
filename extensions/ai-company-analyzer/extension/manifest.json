@@ -10,7 +10,8 @@
     "*://*.innoforest.co.kr/*",
     "*://dart.fss.or.kr/*",
     "*://*.teamblind.com/*",
-    "*://*.saramin.co.kr/*"
+    "*://*.saramin.co.kr/*",
+    "*://*.smes.go.kr/*"
   ],
   "externally_connectable": {
     "matches": [
@@ -29,7 +30,8 @@
       "*://*.jobplanet.co.kr/*",
       "*://*.innoforest.co.kr/*",
       "*://dart.fss.or.kr/*",
-      "*://*.teamblind.com/*"
+      "*://*.teamblind.com/*",
+      "*://*.smes.go.kr/*"
     ],
     "js": ["content.js"],
     "run_at": "document_idle"
@@ -50,7 +52,8 @@
       "*://*.jobplanet.co.kr/*",
       "*://*.innoforest.co.kr/*",
       "*://dart.fss.or.kr/*",
-      "*://*.teamblind.com/*"
+      "*://*.teamblind.com/*",
+      "*://*.smes.go.kr/*"
     ]
   }]
 }

@@ -4,12 +4,14 @@ import { useImages, useImageData } from '@/hooks/useImages';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import Spinner from '@/components/ui/Spinner';
+import SynthesisCard from './SynthesisCard';
 import { CATEGORY_LABELS } from '@shared/constants/categories';
-import type { ImageMetaDTO } from '@shared/types/models';
+import type { ImageMetaDTO, CompanyDetailDTO } from '@shared/types/models';
 import type { ImageSubCategory } from '@shared/constants/categories';
 
 interface AnalysisReportProps {
   companyId: string;
+  synthesis?: CompanyDetailDTO['analysis'];
 }
 
 interface AnalysisData {
@@ -20,7 +22,7 @@ interface AnalysisData {
   keywords: string[];
 }
 
-export default function AnalysisReport({ companyId }: AnalysisReportProps) {
+export default function AnalysisReport({ companyId, synthesis }: AnalysisReportProps) {
   const navigate = useNavigate();
   const { data: images, isLoading, error } = useImages(companyId);
 
@@ -53,6 +55,10 @@ export default function AnalysisReport({ companyId }: AnalysisReportProps) {
 
   return (
     <div className="space-y-8">
+      {/* 종합 분석 */}
+      {synthesis && <SynthesisCard synthesis={synthesis} />}
+
+      {/* 개별 분석 */}
       <div>
         <h3 className="headline text-xl mb-4">상세 분석 ({analyzedImages.length}개)</h3>
         <div className="space-y-4">

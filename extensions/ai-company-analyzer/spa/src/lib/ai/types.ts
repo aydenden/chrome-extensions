@@ -37,3 +37,33 @@ export interface ChatResponse {
   total_duration?: number;
   eval_count?: number;
 }
+
+// ============================================================================
+// Streaming Types
+// ============================================================================
+
+/** 스트리밍 청크 타입 */
+export interface StreamChunk {
+  type: 'thinking' | 'content' | 'done';
+  text: string;
+  accumulated: {
+    thinking: string;
+    content: string;
+  };
+}
+
+/** 스트리밍 옵션 타입 */
+export interface StreamOptions extends ChatOptions {
+  think?: boolean;  // thinking 모드 활성화 (기본: true)
+  onThinking?: (text: string, accumulated: string) => void;
+  onContent?: (text: string, accumulated: string) => void;
+  abortSignal?: AbortSignal;
+}
+
+/** 스트리밍 결과 타입 */
+export interface StreamResult {
+  thinking: string;
+  content: string;
+  success: boolean;
+  error?: string;
+}

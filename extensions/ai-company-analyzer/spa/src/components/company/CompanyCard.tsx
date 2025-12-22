@@ -55,8 +55,26 @@ export default function CompanyCard({ company, onDelete }: CompanyCardProps) {
         </div>
         <div>
           <span className="text-ink-muted">분석</span>
-          <span className="ml-2 font-semibold text-ink">
-            {company.analyzedCount > 0 ? '완료' : '미완료'}
+          <span className="ml-2 font-semibold">
+            {company.analysisScore != null ? (
+              <>
+                <span className="text-ink">{company.analysisScore}점</span>
+                {company.analysisRecommendation && (
+                  <span className={`ml-1 ${
+                    company.analysisRecommendation === 'recommend' ? 'text-signal-positive' :
+                    company.analysisRecommendation === 'not_recommend' ? 'text-signal-negative' :
+                    'text-ink-muted'
+                  }`}>
+                    {company.analysisRecommendation === 'recommend' ? '추천' :
+                     company.analysisRecommendation === 'not_recommend' ? '비추천' : '중립'}
+                  </span>
+                )}
+              </>
+            ) : company.analyzedCount > 0 ? (
+              <span className="text-ink">완료</span>
+            ) : (
+              <span className="text-ink-muted">미완료</span>
+            )}
           </span>
         </div>
       </div>

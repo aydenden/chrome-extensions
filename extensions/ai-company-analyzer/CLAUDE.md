@@ -21,3 +21,14 @@
 - **참조용으로만 사용** (git에서 제외됨)
 - 새 구현 시 로직 참고 가능
 - 주요 파일: src/, e2e/, playwright.config.ts
+
+## dev-browser 테스트
+
+익스텐션과 함께 브라우저 테스트 시:
+
+```bash
+# 익스텐션 경로 지정하여 서버 시작
+EXTENSION_PATH=$(pwd)/extension/dist ./server.sh &
+
+# 이후 dev-browser 스킬 사용
+```
