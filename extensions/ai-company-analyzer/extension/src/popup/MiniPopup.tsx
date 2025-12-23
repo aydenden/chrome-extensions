@@ -1,5 +1,7 @@
 import { usePopupState } from './hooks/usePopupState';
 import { CompanyInput } from './components/CompanyInput';
+import { SupportedSitesList } from './components/SupportedSitesList';
+import { InfoBanner } from './components/InfoBanner';
 
 function MiniPopup() {
   const {
@@ -57,25 +59,28 @@ function MiniPopup() {
             <span className={`status-dot ${isSupported ? 'active' : 'inactive'}`} />
             <span className={`site-name ${isSupported ? '' : 'unsupported'}`}>{siteName}</span>
           </div>
+          {!isSupported && <SupportedSitesList />}
         </section>
 
-        {/* Company Section */}
-        <section className="section">
-          <div className="section-header">
-            <span className="section-label">Company</span>
-            <span className="section-rule" />
-          </div>
+        {/* Company Section - 지원 사이트에서만 표시 */}
+        {isSupported && (
+          <section className="section">
+            <div className="section-header">
+              <span className="section-label">Company</span>
+              <span className="section-rule" />
+            </div>
 
-          <CompanyInput
-            value={companyInput}
-            onChange={setCompanyInput}
-            detectedCompany={detectedCompany}
-            savedCompanies={savedCompanies}
-            inputMode={inputMode}
-            disabled={!isSupported}
-            isLoading={isLoading}
-          />
-        </section>
+            <CompanyInput
+              value={companyInput}
+              onChange={setCompanyInput}
+              detectedCompany={detectedCompany}
+              savedCompanies={savedCompanies}
+              inputMode={inputMode}
+              disabled={!isSupported}
+              isLoading={isLoading}
+            />
+          </section>
+        )}
 
         {/* Capture Button */}
         <button
@@ -87,6 +92,8 @@ function MiniPopup() {
           <span className="button-arrow">→</span>
         </button>
       </main>
+
+      <InfoBanner />
 
       {/* Footer */}
       <footer className="popup-footer">
