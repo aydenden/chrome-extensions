@@ -40,3 +40,15 @@ export function useDeleteCompany() {
     },
   });
 }
+
+export function useUpdateCompanyContext() {
+  const client = getExtensionClient();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ companyId, analysisContext }: { companyId: string; analysisContext: string }) =>
+      client.send('UPDATE_COMPANY_CONTEXT', { companyId, analysisContext }),
+    onSuccess: (_, { companyId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.company(companyId) });
+    },
+  });
+}

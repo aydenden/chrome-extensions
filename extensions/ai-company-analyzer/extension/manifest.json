@@ -2,6 +2,7 @@
   "manifest_version": 3,
   "name": "AI Company Analyzer",
   "version": "1.0.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA42wBb3xeeTZYYzv/Gskqv3DGBkF1f2hHprW6Gf+9gAG9Msw+Ybp91mMW6whwi+0bcSFQ6Gjmfgd64D9YTGW+ep20WWidOJBBdmio/kv/CWHlhqDk6DaLOLHHP6igzBxkzHFvlW50L0wMqRbV+w1iMyfl7osCgoj11jWV9DQghfFazWFk5COxF9M0X9Vl/krbiFEOhZe1Wv2mAPd4fwrLrjdoJ4rghyprCHCXK1omzgzEZUGwtnDueet5WaL6Jv81LuEgh/MeoLIozbJdBG/4emkrn11sRmzjAz8omQp1UjIhLRKg9Spk+O7nxjM7CWbXWBaE81xSfhiJxbIwdTyDeQIDAQAB",
   "description": "기업 정보 수집 및 AI 분석",
   "permissions": ["storage", "tabs", "activeTab", "notifications"],
   "host_permissions": [

@@ -4,6 +4,7 @@
  */
 import type { ChatMessage, ChatOptions as BaseChatOptions, StreamOptions, StreamChunk, StreamResult } from '@/lib/ai/types';
 import { extractJsonFromContent } from '@/lib/ai/stream-parser';
+import { DEFAULT_SYNTHESIS_PROMPT, interpolatePrompt } from '@/lib/prompts';
 
 export interface SynthesisResult {
   score: number;                    // 0-100
@@ -59,26 +60,22 @@ export type ChatStreamFunction = (
   options?: StreamOptions
 ) => AsyncGenerator<StreamChunk, StreamResult, unknown>;
 
-/** 스트리밍용 프롬프트 (format 없이 JSON 형식 요청) */
-const STREAMING_SYNTHESIS_PROMPT = `다음은 {{COMPANY_NAME}} 회사에 대한 개별 분석 결과입니다:
-
-{{ANALYSES}}
-
-위 분석 결과를 종합하여 회사 전체를 평가해주세요.
-
-## 응답 형식
-반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트는 포함하지 마세요:
-
-\`\`\`json
-{
-  "score": 0-100 사이 숫자,
-  "summary": "회사 종합 요약 (2-3문장)",
-  "strengths": ["강점1", "강점2", "강점3"],
-  "weaknesses": ["약점1", "약점2", "약점3"],
-  "recommendation": "recommend" 또는 "neutral" 또는 "not_recommend",
-  "reasoning": "추천 이유 (1-2문장)"
+/**
+ * 스트리밍용 종합 분석 프롬프트 생성
+ * 커스텀 템플릿을 사용하여 변수를 치환
+ */
+function createStreamingSynthesisPrompt(
+  promptTemplate: string,
+  companyName: string,
+  analysesText: string,
+  analysisContext?: string
+): string {
+  return interpolatePrompt(promptTemplate, {
+    companyName,
+    analysisContext,
+    analyses: analysesText,
+  });
 }
-\`\`\``;
 
 export async function generateSynthesis(
   companyName: string,
@@ -136,7 +133,9 @@ export async function generateSynthesisWithStream(
   companyName: string,
   analysisResults: AnalysisResultItem[],
   chatStream: ChatStreamFunction,
-  callbacks?: SynthesisStreamCallbacks
+  callbacks?: SynthesisStreamCallbacks,
+  analysisContext?: string,
+  promptTemplate?: string
 ): Promise<SynthesisResult | null> {
   if (analysisResults.length === 0) return null;
 
@@ -150,9 +149,8 @@ export async function generateSynthesisWithStream(
     }
   }).join('\n\n');
 
-  const prompt = STREAMING_SYNTHESIS_PROMPT
-    .replace('{{COMPANY_NAME}}', companyName)
-    .replace('{{ANALYSES}}', analysesText);
+  const template = promptTemplate || DEFAULT_SYNTHESIS_PROMPT;
+  const prompt = createStreamingSynthesisPrompt(template, companyName, analysesText, analysisContext);
 
   const options: StreamOptions = {
     num_ctx: 16384,

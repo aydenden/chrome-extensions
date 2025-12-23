@@ -3,6 +3,7 @@
  * Analysis.tsx에서 상태 관리 로직 추출
  */
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useOllama } from '@/contexts/OllamaContext';
 import type { StreamChunk } from '@/lib/ai/types';
 import {
@@ -11,6 +12,7 @@ import {
   type AnalysisResultItem,
   type SynthesisResult,
 } from '@/lib/analysis';
+import { queryKeys } from '@/lib/query/keys';
 
 // ============================================================================
 // Types
@@ -84,6 +86,7 @@ export interface UseAnalysisSessionOptions {
 export function useAnalysisSession(options: UseAnalysisSessionOptions = {}) {
   const { useStreaming = true } = options;
   const { analyzeImage, analyzeImageStream, chat, chatStream, selectedModel, endpoint } = useOllama();
+  const queryClient = useQueryClient();
 
   // State
   const [state, setState] = useState<AnalysisSessionState>(INITIAL_STATE);
@@ -245,7 +248,16 @@ export function useAnalysisSession(options: UseAnalysisSessionOptions = {}) {
   // 분석 시작
   // ========================================================================
   const startAnalysis = useCallback(
-    async (companyId: string, companyName: string, imageIds: string[]) => {
+    async (
+      companyId: string,
+      companyName: string,
+      imageIds: string[],
+      analysisContext?: string,
+      promptSettings?: {
+        imageAnalysis?: string;
+        synthesis?: string;
+      }
+    ) => {
       if (!selectedModel || !endpoint) {
         setState((prev) => ({
           ...prev,
@@ -303,6 +315,9 @@ export function useAnalysisSession(options: UseAnalysisSessionOptions = {}) {
           onStreamChunk,
           onSynthesisStreamChunk,
           abortSignal: abortControllerRef.current.signal,
+          analysisContext,
+          imageAnalysisPrompt: promptSettings?.imageAnalysis,
+          synthesisPrompt: promptSettings?.synthesis,
         });
 
         setState((prev) => ({
@@ -335,9 +350,13 @@ export function useAnalysisSession(options: UseAnalysisSessionOptions = {}) {
         }
       } finally {
         abortControllerRef.current = null;
+        // 분석 완료/중단 후 이미지 캐시 무효화 (hasAnalysis 상태 반영)
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.images(companyId),
+        });
       }
     },
-    [selectedModel, endpoint, analyzeImage, analyzeImageStream, chat, chatStream, useStreaming, updateProgress, onImageComplete, onStreamChunk, onSynthesisStreamChunk]
+    [selectedModel, endpoint, analyzeImage, analyzeImageStream, chat, chatStream, useStreaming, updateProgress, onImageComplete, onStreamChunk, onSynthesisStreamChunk, queryClient]
   );
 
   // ========================================================================

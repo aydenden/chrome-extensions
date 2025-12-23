@@ -10,4 +10,5 @@ export const queryKeys = {
   imageData: (id: string) => [...queryKeys.all, 'imageData', id] as const,
   thumbnail: (id: string) => [...queryKeys.all, 'thumbnail', id] as const,
   stats: () => [...queryKeys.all, 'stats'] as const,
+  promptSettings: () => [...queryKeys.all, 'promptSettings'] as const,
 } as const;

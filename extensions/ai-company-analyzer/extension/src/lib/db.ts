@@ -20,7 +20,9 @@ export interface Company {
     recommendation?: 'recommend' | 'neutral' | 'not_recommend';
     reasoning?: string;
     analyzedAt?: string;
+    analyzedModel?: string; // 종합 분석에 사용된 모델명
   };
+  analysisContext?: string; // 전체 분석 컨텍스트 메모
   createdAt: Date;
   updatedAt: Date;
 }
@@ -38,6 +40,8 @@ export interface StoredImage {
   category?: ImageSubCategory;
   rawText?: string;
   analysis?: string;
+  analyzedModel?: string; // 분석에 사용된 모델명
+  memo?: string; // 개별 이미지 메모
   createdAt: Date;
   updatedAt?: Date;
 }
@@ -52,6 +56,12 @@ class AnalyzerDatabase extends Dexie {
     this.version(2).stores({
       companies: 'id, name, url, siteType, createdAt, updatedAt',
       images: 'id, companyId, siteType, category, createdAt',
+    });
+
+    // Version 3: analyzedModel, memo 필드 추가
+    this.version(3).stores({
+      companies: 'id, name, url, siteType, createdAt, updatedAt',
+      images: 'id, companyId, siteType, category, analyzedModel, createdAt',
     });
   }
 }

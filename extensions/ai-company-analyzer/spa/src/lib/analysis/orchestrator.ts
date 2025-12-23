@@ -74,7 +74,16 @@ export class AnalysisOrchestrator {
     imageIds: string[],
     options: AnalysisOptions = {}
   ): Promise<OrchestratorResult> {
-    const { onProgress, onImageComplete, onStreamChunk, abortSignal, useStreaming = true } = options;
+    const {
+      onProgress,
+      onImageComplete,
+      onStreamChunk,
+      abortSignal,
+      useStreaming = true,
+      analysisContext,
+      imageAnalysisPrompt,
+      synthesisPrompt,
+    } = options;
     let results: AnalysisResultItem[] = [];
     let completedIds: string[] = [];
     let failedIds: string[] = [];
@@ -135,6 +144,7 @@ export class AnalysisOrchestrator {
           },
           onImageComplete,
           onStreamChunk,
+          promptTemplate: imageAnalysisPrompt,
         }
       );
     } else {
@@ -206,7 +216,9 @@ export class AnalysisOrchestrator {
               accumulated: { thinking: '', content: accumulated },
             });
           },
-        }
+        },
+        analysisContext,
+        synthesisPrompt
       );
 
       // 종합 분석 결과 저장
@@ -215,7 +227,10 @@ export class AnalysisOrchestrator {
         try {
           const saveResponse = await this.client.send('UPDATE_COMPANY_ANALYSIS', {
             companyId,
-            analysis: synthesis,
+            analysis: {
+              ...synthesis,
+              analyzedModel: this.deps.selectedModel, // 종합 분석에 사용된 모델 저장
+            },
           });
           console.log('[Orchestrator] Synthesis saved:', saveResponse);
         } catch (error) {
@@ -277,9 +292,10 @@ export class AnalysisOrchestrator {
       category: r.category,
       rawText: r.rawText,
       analysis: r.analysis,
+      analyzedModel: this.deps.selectedModel, // 분석에 사용된 모델 저장
     }));
 
-    console.log('[Orchestrator] Saving image results:', savePayload.map(p => ({ imageId: p.imageId, category: p.category })));
+    console.log('[Orchestrator] Saving image results:', savePayload.map(p => ({ imageId: p.imageId, category: p.category, analyzedModel: p.analyzedModel })));
 
     const saveResult = await this.client.send('BATCH_SAVE_ANALYSIS', {
       results: savePayload,

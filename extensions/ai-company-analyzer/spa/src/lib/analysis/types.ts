@@ -89,6 +89,12 @@ export interface AnalysisOptions {
   onSynthesisStreamChunk?: (chunk: import('@/lib/ai/types').StreamChunk) => void;
   /** 중단 시그널 */
   abortSignal?: AbortSignal;
+  /** 분석 컨텍스트 (종합 분석에 사용) */
+  analysisContext?: string;
+  /** 커스텀 이미지 분석 프롬프트 템플릿 */
+  imageAnalysisPrompt?: string;
+  /** 커스텀 종합 분석 프롬프트 템플릿 */
+  synthesisPrompt?: string;
 }
 
 // ============================================================================
@@ -111,4 +117,6 @@ export interface OrchestratorResult {
 export interface LoadedImage {
   id: string;
   base64: string;
+  /** 이미지별 메모 (분석 프롬프트에 사용) */
+  memo?: string;
 }

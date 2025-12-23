@@ -9,6 +9,7 @@ import {
   parseAnalysisResult,
 } from '@/lib/ai/prompts/image-analysis';
 import { extractJsonFromContent } from '@/lib/ai/stream-parser';
+import { DEFAULT_IMAGE_ANALYSIS_PROMPT, interpolatePrompt } from '@/lib/prompts';
 import type { AnalysisResultItem, LoadedImage } from './types';
 
 /** analyzeImage 함수 타입 (비스트리밍) */
@@ -54,6 +55,12 @@ const STREAMING_ANALYSIS_OPTIONS: StreamOptions = {
 export interface AnalyzeImageParams {
   image: LoadedImage;
   companyName: string;
+  /** 이미지별 메모 (프롬프트에 포함) */
+  memo?: string;
+  /** 커스텀 프롬프트 템플릿 (미제공 시 기본값 사용) */
+  promptTemplate?: string;
+  /** 중단 신호 */
+  abortSignal?: AbortSignal;
 }
 
 /**
@@ -164,40 +171,18 @@ export async function analyzeImages(
 // ============================================================================
 
 /**
- * 스트리밍용 이미지 분석 프롬프트
- * format 파라미터 없이 프롬프트에서 JSON 형식 요청
+ * 스트리밍용 이미지 분석 프롬프트 생성
+ * 커스텀 템플릿을 사용하여 변수를 치환
  */
-function createStreamingAnalysisPrompt(companyName: string): string {
-  return `${companyName} 회사의 스크린샷을 분석하세요.
-
-## 카테고리
-다음 중 하나를 선택하세요:
-- revenue_trend: 매출/수익 추이 그래프
-- balance_sheet: 재무상태표
-- income_statement: 손익계산서
-- employee_trend: 직원수/입퇴사 추이
-- review_positive: 긍정적 리뷰
-- review_negative: 부정적 리뷰
-- company_overview: 회사 개요/소개
-- unknown: 분류 불가
-
-## 분석 요청
-1. 이미지에서 텍스트와 수치 데이터를 추출하세요
-2. 적절한 카테고리를 선택하세요
-3. 핵심 내용을 요약하세요
-
-## 응답 형식
-반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트는 포함하지 마세요:
-
-\`\`\`json
-{
-  "category": "카테고리명",
-  "summary": "2-3문장 요약",
-  "keyPoints": ["핵심포인트1", "핵심포인트2", "핵심포인트3"],
-  "sentiment": "positive 또는 neutral 또는 negative",
-  "extractedText": "이미지에서 추출한 주요 텍스트/수치"
-}
-\`\`\``;
+function createStreamingAnalysisPrompt(
+  promptTemplate: string,
+  companyName: string,
+  memo?: string
+): string {
+  return interpolatePrompt(promptTemplate, {
+    companyName,
+    memo,
+  });
 }
 
 /** 스트리밍 분석 결과 타입 */
@@ -215,8 +200,9 @@ export async function analyzeImageWithStream(
   analyzeStreamFn: AnalyzeImageStreamFn,
   callbacks?: StreamingAnalysisCallbacks
 ): Promise<AnalysisResultItem> {
-  const { image, companyName } = params;
-  const prompt = createStreamingAnalysisPrompt(companyName);
+  const { image, companyName, memo, promptTemplate, abortSignal } = params;
+  const template = promptTemplate || DEFAULT_IMAGE_ANALYSIS_PROMPT;
+  const prompt = createStreamingAnalysisPrompt(template, companyName, memo || image.memo);
 
   try {
     let finalResult: StreamResult | null = null;
@@ -225,6 +211,7 @@ export async function analyzeImageWithStream(
       ...STREAMING_ANALYSIS_OPTIONS,
       onThinking: callbacks?.onThinking,
       onContent: callbacks?.onContent,
+      abortSignal,
     });
 
     // 스트림 소비
@@ -309,6 +296,8 @@ export async function analyzeImagesWithStream(
     onImageComplete?: (result: AnalysisResultItem) => void;
     onStreamChunk?: (imageId: string, chunk: StreamChunk) => void;
     abortSignal?: AbortSignal;
+    /** 커스텀 프롬프트 템플릿 */
+    promptTemplate?: string;
   }
 ): Promise<{
   results: AnalysisResultItem[];
@@ -328,7 +317,13 @@ export async function analyzeImagesWithStream(
 
     try {
       const result = await analyzeImageWithStream(
-        { image, companyName },
+        {
+          image,
+          companyName,
+          memo: image.memo,
+          promptTemplate: options?.promptTemplate,
+          abortSignal: options?.abortSignal,
+        },
         analyzeStreamFn,
         {
           onThinking: (text, accumulated) => {

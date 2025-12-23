@@ -30,7 +30,9 @@ export interface CompanyDetailDTO extends CompanyDTO {
     recommendation?: 'recommend' | 'neutral' | 'not_recommend';
     reasoning?: string;
     analyzedAt?: string;
+    analyzedModel?: string; // 종합 분석에 사용된 모델명
   };
+  analysisContext?: string; // 전체 분석 컨텍스트 메모
 }
 
 /** 이미지 메타데이터 DTO */
@@ -44,6 +46,8 @@ export interface ImageMetaDTO {
   category?: ImageSubCategory;
   hasRawText: boolean;
   hasAnalysis: boolean;
+  analyzedModel?: string; // 분석에 사용된 모델명
+  memo?: string; // 개별 이미지 메모
   createdAt: string;
 }
 
@@ -55,6 +59,7 @@ export interface ImageDataDTO {
   rawText?: string;
   analysis?: string;
   category?: ImageSubCategory;
+  memo?: string;
 }
 
 /** 통계 DTO */

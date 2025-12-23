@@ -52,3 +52,24 @@ export function useDeleteImage(companyId: string) {
     },
   });
 }
+
+export function useUpdateImageMemo(companyId: string) {
+  const client = getExtensionClient();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ imageId, memo }: { imageId: string; memo: string }) =>
+      client.send('UPDATE_IMAGE_MEMO', { imageId, memo }),
+    onMutate: async ({ imageId, memo }) => {
+      // Optimistic update
+      await qc.cancelQueries({ queryKey: queryKeys.images(companyId) });
+      const previousImages = qc.getQueryData(queryKeys.images(companyId));
+      qc.setQueryData(queryKeys.images(companyId), (old: any[]) =>
+        old?.map((img) => (img.id === imageId ? { ...img, memo } : img)) ?? []
+      );
+      return { previousImages };
+    },
+    onError: (_err, _vars, context) => {
+      qc.setQueryData(queryKeys.images(companyId), context?.previousImages);
+    },
+  });
+}

@@ -16,8 +16,8 @@ AI 응답 예시 1:
 ```json
 {"category": "welfare", "summary": "..."}
 ```
-"
 
+```
 AI 응답 예시 2:
 {"category": "welfare", "summary": "..."}
 
@@ -31,7 +31,7 @@ AI 응답 예시 3:
 
 ```
 원본: "안녕하세요"
-UTF-8 바이트: [EC 95 88] [EB 85 95] [ED 95 98] [EC 84 B8] [EC 9A 94]
+UTF-8 바이트: '[EC 95 88] [EB 85 95] [ED 95 98] [EC 84 B8] [EC 9A 94]
 
 청크 1: [EC 95 88 EB 85] (불완전 - "안" + "녕"의 일부)
 청크 2: [95 ED 95 98 EC] (불완전)
@@ -46,9 +46,9 @@ UTF-8 바이트: [EC 95 88] [EB 85 95] [ED 95 98] [EC 84 B8] [EC 9A 94]
 ```mermaid
 flowchart TD
     A[AI 응답 텍스트] --> B{Step 1: 코드블록?}
-    B -->|Yes| C["```json...``` 추출"]
+    B -->|Yes| C["json... 추출"]
     B -->|No| D{Step 2: 일반블록?}
-    D -->|Yes| E["```...``` 추출"]
+    D -->|Yes| E["... 추출"]
     D -->|No| F{Step 3: 직접 파싱?}
     F -->|Yes| G[JSON.parse 시도]
     F -->|No| H{Step 4: 패턴 매칭?}

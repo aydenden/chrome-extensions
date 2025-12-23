@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/layout';
 import { CompanyMeta, TabNavigation } from '@/components/company';
 import { ImageGallery } from '@/components/image';
-import { AnalysisReport } from '@/components/analysis';
+import { AnalysisReport, AnalysisContextCard } from '@/components/analysis';
 import { Spinner, Modal, Button, Card } from '@/components/ui';
 import { useCompany, useDeleteCompany } from '@/hooks';
 import { ROUTES } from '@/lib/routes';
@@ -93,6 +93,18 @@ export default function CompanyDetail() {
         <div className="col-span-12">
           <TabNavigation tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} />
         </div>
+
+        {/* 분석 컨텍스트 (read-only) */}
+        {company.analysisContext && (
+          <div className="col-span-12">
+            <AnalysisContextCard
+              context={company.analysisContext}
+              onChange={() => {}}
+              onSave={() => {}}
+              readOnly
+            />
+          </div>
+        )}
 
         {/* 종합 분석 결과 */}
         {company.analysis && (

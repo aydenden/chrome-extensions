@@ -99,9 +99,11 @@ export async function getImagesByCompany(companyId: string): Promise<StoredImage
 export async function updateImageAnalysis(
   imageId: string,
   data: {
-    category: ImageSubCategory;
-    rawText: string;
-    analysis: string;
+    category?: ImageSubCategory;
+    rawText?: string;
+    analysis?: string;
+    analyzedModel?: string;
+    memo?: string;
   }
 ): Promise<void> {
   await db.images.update(imageId, {

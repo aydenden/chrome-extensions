@@ -4,8 +4,8 @@ import { autoInitExtensionClient } from '@/lib/extension-client';
 import App from './App';
 import './styles/globals.css';
 
-// Extension Client 초기화 (환경변수에서 ID 읽음, 없으면 Mock 사용)
-const EXTENSION_ID = import.meta.env.VITE_EXTENSION_ID ?? '';
+// Extension Client 초기화 (manifest.json key로 고정된 ID)
+const EXTENSION_ID = 'opndpciajcchajfpcafiglahllclcgam';
 autoInitExtensionClient(EXTENSION_ID);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

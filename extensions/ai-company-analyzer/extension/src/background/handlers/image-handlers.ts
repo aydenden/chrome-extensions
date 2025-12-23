@@ -82,6 +82,8 @@ function toImageMetaDTO(image: StoredImage): ImageMetaDTO {
     category: image.category,
     hasRawText: !!image.rawText,
     hasAnalysis: !!image.analysis,
+    analyzedModel: image.analyzedModel,
+    memo: image.memo,
     createdAt: image.createdAt.toISOString(),
   };
 }
@@ -133,6 +135,7 @@ export function registerImageHandlers(): void {
       base64,
       mimeType: image.mimeType,
       category: image.category,
+      memo: image.memo,
     };
 
     if (includeRawText && image.rawText) {

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { PageHeader } from '@/components/layout';
 import { Button, Card, Modal, Spinner } from '@/components/ui';
+import { PromptSettingsCard } from '@/components/settings';
 import { useStats } from '@/hooks/useStats';
 import { useOllama } from '@/contexts/OllamaContext';
 import { cn } from '@/lib/utils';
@@ -184,6 +185,9 @@ export default function Settings() {
               </>
             )}
           </Card>
+
+          {/* AI 프롬프트 설정 */}
+          <PromptSettingsCard />
 
           {/* 데이터 관리 */}
           <Card className="p-6">

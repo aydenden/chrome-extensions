@@ -41,6 +41,7 @@ export async function loadAndOptimizeImages(
     results.push({
       id: imageData.id,
       base64: optimizedBase64,
+      memo: imageData.memo,
     });
 
     // 진행률 콜백

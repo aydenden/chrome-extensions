@@ -3,6 +3,7 @@ import { getStats } from '@/lib/storage';
 import { registerCompanyHandlers } from './handlers/company-handlers';
 import { registerImageHandlers } from './handlers/image-handlers';
 import { registerAnalysisHandlers } from './handlers/analysis-handlers';
+import { registerSettingsHandlers } from './handlers/settings-handlers';
 
 const ALLOWED_ORIGINS = [
   'https://username.github.io',
@@ -80,6 +81,9 @@ export function initExternalApi(): void {
 
   // Analysis 핸들러 등록
   registerAnalysisHandlers();
+
+  // Settings 핸들러 등록
+  registerSettingsHandlers();
 
   console.log('[External API] Initialized');
 }

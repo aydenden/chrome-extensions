@@ -1,16 +1,19 @@
 /**
  * AI 분석 페이지
- * 리팩토링: 611줄 -> ~120줄
+ * 이미지 분석 및 종합 분석 수행
  */
+import { useState, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { PageHeader } from '@/components/layout';
 import Card from '@/components/ui/Card';
 import { useOllama } from '@/contexts/OllamaContext';
-import { useImages } from '@/hooks/useImages';
-import { useCompany } from '@/hooks/useCompanies';
+import { useImages, useUpdateImageMemo } from '@/hooks/useImages';
+import { useCompany, useUpdateCompanyContext } from '@/hooks/useCompanies';
 import { useAnalysisSession } from '@/hooks/useAnalysisSession';
+import { usePromptSettings } from '@/hooks/usePromptSettings';
 import {
   AnalysisProgress,
+  AnalysisContextCard,
   ImageStatusGrid,
   SynthesisCard,
   ResultsPreview,
@@ -23,6 +26,20 @@ export default function Analysis() {
   const { isConnected: ollamaConnected, selectedModel } = useOllama();
   const { data: company } = useCompany(companyId);
   const { data: images } = useImages(companyId);
+  const { data: promptSettings } = usePromptSettings();
+  const updateContext = useUpdateCompanyContext();
+  const updateMemo = useUpdateImageMemo(companyId || '');
+
+  // 로컬 상태
+  const [includePrevious, setIncludePrevious] = useState(false);
+  const [analysisContext, setAnalysisContext] = useState(company?.analysisContext || '');
+
+  // 회사 데이터가 로드되면 컨텍스트 동기화
+  useMemo(() => {
+    if (company?.analysisContext !== undefined) {
+      setAnalysisContext(company.analysisContext || '');
+    }
+  }, [company?.analysisContext]);
 
   // 분석 세션 훅
   const {
@@ -39,14 +56,61 @@ export default function Analysis() {
     stopAnalysis,
   } = useAnalysisSession();
 
+  // 이미지 분류: 이전 분석 완료 vs 신규 분석 대상
+  const { previouslyAnalyzed, toBeAnalyzed } = useMemo(() => {
+    if (!images || !selectedModel) {
+      return { previouslyAnalyzed: [], toBeAnalyzed: images || [] };
+    }
+
+    const previouslyAnalyzed = images.filter(
+      (img) => img.hasAnalysis && img.analyzedModel === selectedModel
+    );
+    const toBeAnalyzed = images.filter(
+      (img) => !img.hasAnalysis || img.analyzedModel !== selectedModel
+    );
+
+    return { previouslyAnalyzed, toBeAnalyzed };
+  }, [images, selectedModel]);
+
+  // 실제 분석 대상
+  const targetImages = useMemo(() => {
+    if (includePrevious) {
+      return images || [];
+    }
+    return toBeAnalyzed;
+  }, [includePrevious, images, toBeAnalyzed]);
+
   // 분석 시작 핸들러
-  const handleStart = () => {
-    if (!companyId || !images || images.length === 0) return;
-    startAnalysis(companyId, company?.name || '', images.map((img) => img.id));
-  };
+  const handleStart = useCallback(() => {
+    if (!companyId || !targetImages || targetImages.length === 0) return;
+    startAnalysis(
+      companyId,
+      company?.name || '',
+      targetImages.map((img) => img.id),
+      analysisContext,
+      promptSettings ? {
+        imageAnalysis: promptSettings.imageAnalysis.prompt,
+        synthesis: promptSettings.synthesis.prompt,
+      } : undefined
+    );
+  }, [companyId, company?.name, targetImages, startAnalysis, analysisContext, promptSettings]);
+
+  // 컨텍스트 저장 핸들러
+  const handleSaveContext = useCallback(() => {
+    if (!companyId) return;
+    updateContext.mutate({ companyId, analysisContext });
+  }, [companyId, analysisContext, updateContext]);
+
+  // 이미지 메모 업데이트 핸들러
+  const handleUpdateMemo = useCallback((imageId: string, memo: string) => {
+    updateMemo.mutate({ imageId, memo });
+  }, [updateMemo]);
 
   // 시작 가능 여부
-  const canStart = ollamaConnected && !!selectedModel && !!images && images.length > 0;
+  const canStart = ollamaConnected && !!selectedModel && targetImages.length > 0;
+
+  // 현재 분석 중인 이미지 ID
+  const currentAnalyzingId = streaming.currentImageId;
 
   return (
     <>
@@ -65,8 +129,18 @@ export default function Analysis() {
           />
         </div>
 
-        {/* 분석 진행 카드 */}
+        {/* 분석 컨텍스트 카드 */}
         <div className="col-span-12 lg:col-span-8">
+          <AnalysisContextCard
+            context={analysisContext}
+            onChange={setAnalysisContext}
+            onSave={handleSaveContext}
+            isSaving={updateContext.isPending}
+          />
+        </div>
+
+        {/* 분석 진행 카드 */}
+        <div className="col-span-12">
           <AnalysisProgress
             progress={progress}
             overallProgress={overallProgress}
@@ -83,9 +157,15 @@ export default function Analysis() {
         {images && images.length > 0 && (
           <div className="col-span-12">
             <ImageStatusGrid
-              images={images}
+              toBeAnalyzed={toBeAnalyzed}
+              previouslyAnalyzed={previouslyAnalyzed}
+              includePrevious={includePrevious}
+              onToggleIncludePrevious={setIncludePrevious}
               completedImageIds={completedImageIds}
               failedImageIds={failedImageIds}
+              currentAnalyzingId={currentAnalyzingId}
+              isAnalyzing={isRunning}
+              onUpdateMemo={handleUpdateMemo}
             />
           </div>
         )}

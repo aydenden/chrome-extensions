@@ -20,6 +20,10 @@ export type MessageType =
   | 'SAVE_ANALYSIS'
   | 'BATCH_SAVE_ANALYSIS'
   | 'UPDATE_COMPANY_ANALYSIS'
+  | 'UPDATE_IMAGE_MEMO'
+  | 'UPDATE_COMPANY_CONTEXT'
+  | 'GET_PROMPT_SETTINGS'
+  | 'SET_PROMPT_SETTINGS'
   | 'PING'
   | 'GET_STATS';
 
@@ -62,7 +66,16 @@ export interface MessagePayload {
       category: ImageSubCategory;
       rawText: string;
       analysis: string;
+      analyzedModel: string; // 분석에 사용된 모델명
     }>;
+  };
+  UPDATE_IMAGE_MEMO: {
+    imageId: string;
+    memo: string;
+  };
+  UPDATE_COMPANY_CONTEXT: {
+    companyId: string;
+    analysisContext: string;
   };
   UPDATE_COMPANY_ANALYSIS: {
     companyId: string;
@@ -73,7 +86,13 @@ export interface MessagePayload {
       weaknesses: string[];
       recommendation: 'recommend' | 'neutral' | 'not_recommend';
       reasoning: string;
+      analyzedModel?: string; // 종합 분석에 사용된 모델명
     };
+  };
+  GET_PROMPT_SETTINGS: undefined;
+  SET_PROMPT_SETTINGS: {
+    imageAnalysis?: { prompt: string };
+    synthesis?: { prompt: string };
   };
   PING: undefined;
   GET_STATS: undefined;
@@ -96,6 +115,13 @@ export interface MessageResponse {
   SAVE_ANALYSIS: { updatedAt: string };
   BATCH_SAVE_ANALYSIS: { savedCount: number; failedIds: string[] };
   UPDATE_COMPANY_ANALYSIS: { updatedAt: string };
+  UPDATE_IMAGE_MEMO: { updatedAt: string };
+  UPDATE_COMPANY_CONTEXT: { updatedAt: string };
+  GET_PROMPT_SETTINGS: {
+    imageAnalysis: { prompt: string; updatedAt: string } | null;
+    synthesis: { prompt: string; updatedAt: string } | null;
+  };
+  SET_PROMPT_SETTINGS: { updatedAt: string };
   PING: { version: string; timestamp: string };
   GET_STATS: StatsDTO;
 }
@@ -112,6 +138,10 @@ export type ExtensionRequest =
   | { type: 'SAVE_ANALYSIS'; payload: MessagePayload['SAVE_ANALYSIS'] }
   | { type: 'BATCH_SAVE_ANALYSIS'; payload: MessagePayload['BATCH_SAVE_ANALYSIS'] }
   | { type: 'UPDATE_COMPANY_ANALYSIS'; payload: MessagePayload['UPDATE_COMPANY_ANALYSIS'] }
+  | { type: 'UPDATE_IMAGE_MEMO'; payload: MessagePayload['UPDATE_IMAGE_MEMO'] }
+  | { type: 'UPDATE_COMPANY_CONTEXT'; payload: MessagePayload['UPDATE_COMPANY_CONTEXT'] }
+  | { type: 'GET_PROMPT_SETTINGS' }
+  | { type: 'SET_PROMPT_SETTINGS'; payload: MessagePayload['SET_PROMPT_SETTINGS'] }
   | { type: 'PING' }
   | { type: 'GET_STATS' };
 
