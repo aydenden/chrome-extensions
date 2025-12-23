@@ -35,13 +35,29 @@ const ConfirmPopup: React.FC<ConfirmPopupProps> = ({
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    // 회사명 정규화 함수 (공백, 대소문자 무시)
+    const normalize = (str: string) =>
+      str.toLowerCase().trim().replace(/\s+/g, ' ');
+
     // 기존 회사 목록 가져오기
     chrome.runtime.sendMessage({ type: 'GET_COMPANIES_INTERNAL' }, (response) => {
       if (response?.success && response.companies) {
         setExistingCompanies(response.companies);
+
+        // 감지된 회사명과 기존 회사 매칭 (정규화된 비교)
+        const normalizedDetected = normalize(detectedCompanyName);
+        const matchedCompany = response.companies.find(
+          (c: Company) => normalize(c.name) === normalizedDetected
+        );
+
+        if (matchedCompany) {
+          // 기존 회사가 있으면 "기존 회사에 추가" 기본 선택
+          setSaveTarget('existing');
+          setExistingCompanyId(matchedCompany.id);
+        }
       }
     });
-  }, []);
+  }, [detectedCompanyName]);
 
   const handleSave = () => {
     if (saveTarget === 'new' && !companyName.trim()) {

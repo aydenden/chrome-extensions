@@ -1,5 +1,6 @@
 import { usePopupState } from './hooks/usePopupState';
 import { CompanyInput } from './components/CompanyInput';
+import { CaptureOptions } from './components/CaptureOptions';
 import { SupportedSitesList } from './components/SupportedSitesList';
 import { InfoBanner } from './components/InfoBanner';
 
@@ -15,9 +16,17 @@ function MiniPopup() {
     inputMode,
     isCapturing,
     error,
+    // 캡처 옵션
+    quickCapture,
+    continuousCapture,
+    selectedCompanyId,
+    captureCount,
     setCompanyInput,
     handleCapture,
     openDashboard,
+    setQuickCapture,
+    setContinuousCapture,
+    resetCaptureCount,
   } = usePopupState();
 
   const formatBytes = (bytes: number): string => {
@@ -30,10 +39,19 @@ function MiniPopup() {
 
   const onCapture = async () => {
     const success = await handleCapture();
-    if (success) {
+    if (success && !continuousCapture) {
+      // 연속 캡처 모드가 아닐 때만 팝업 닫기
       setTimeout(() => window.close(), 500);
     }
   };
+
+  const onFinishContinuousCapture = () => {
+    resetCaptureCount();
+    window.close();
+  };
+
+  // 빠른 캡처는 기존 회사가 선택되어 있을 때만 가능
+  const canQuickCapture = !!selectedCompanyId;
 
   return (
     <div className="popup-container">
@@ -82,13 +100,45 @@ function MiniPopup() {
           </section>
         )}
 
+        {/* Capture Options - 지원 사이트에서만 표시 */}
+        {isSupported && (
+          <CaptureOptions
+            quickCapture={quickCapture}
+            continuousCapture={continuousCapture}
+            canQuickCapture={canQuickCapture}
+            onQuickCaptureChange={setQuickCapture}
+            onContinuousCaptureChange={setContinuousCapture}
+          />
+        )}
+
+        {/* Continuous Capture Status */}
+        {continuousCapture && captureCount > 0 && (
+          <div className="continuous-status">
+            <div className="status-info">
+              <span className="status-pulse" />
+              <span className="status-counter">
+                <span className="count">{captureCount}</span>개 캡처됨
+              </span>
+            </div>
+            <button className="finish-button" onClick={onFinishContinuousCapture}>
+              완료
+            </button>
+          </div>
+        )}
+
         {/* Capture Button */}
         <button
           className="capture-button"
           onClick={onCapture}
           disabled={!isSupported || isCapturing || !companyInput.trim()}
         >
-          <span className="button-text">{isCapturing ? '캡처 중...' : '화면 캡처'}</span>
+          <span className="button-text">
+            {isCapturing
+              ? '캡처 중...'
+              : continuousCapture && captureCount > 0
+                ? '다음 캡처'
+                : '화면 캡처'}
+          </span>
           <span className="button-arrow">→</span>
         </button>
       </main>
