@@ -14,6 +14,7 @@ import Analysis from '@/pages/Analysis';
 import Settings from '@/pages/Settings';
 import NotFound from '@/pages/NotFound';
 import ExtensionRequired from '@/pages/ExtensionRequired';
+import OllamaRequired from '@/pages/OllamaRequired';
 import LoadingPage from '@/pages/LoadingPage';
 
 function AppRoutes() {
@@ -29,6 +30,7 @@ function AppRoutes() {
         <Route path="/" element={<CompanyList />} />
         <Route path="/company/:companyId" element={<CompanyDetail />} />
         <Route path="/analysis/:companyId" element={<Analysis />} />
+        <Route path="/ollama-required/:companyId" element={<OllamaRequired />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

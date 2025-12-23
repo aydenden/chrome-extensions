@@ -6,6 +6,7 @@ import { ImageGallery } from '@/components/image';
 import { AnalysisReport, AnalysisContextCard } from '@/components/analysis';
 import { Spinner, Modal, Button, Card } from '@/components/ui';
 import { useCompany, useDeleteCompany } from '@/hooks';
+import { useOllama } from '@/contexts/OllamaContext';
 import { ROUTES } from '@/lib/routes';
 
 type TabId = 'images' | 'analysis';
@@ -18,10 +19,18 @@ export default function CompanyDetail() {
 
   const { data: company, isLoading, error } = useCompany(companyId);
   const deleteCompany = useDeleteCompany();
+  const { checkConnection } = useOllama();
 
-  const handleStartAnalysis = () => {
-    if (companyId) {
+  const handleStartAnalysis = async () => {
+    if (!companyId) return;
+
+    // Ollama 연결 체크
+    const connected = await checkConnection();
+
+    if (connected) {
       navigate(ROUTES.ANALYSIS(companyId));
+    } else {
+      navigate(ROUTES.OLLAMA_REQUIRED(companyId));
     }
   };
 
