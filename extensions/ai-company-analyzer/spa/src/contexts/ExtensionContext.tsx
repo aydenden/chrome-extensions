@@ -25,16 +25,30 @@ export function ExtensionProvider({ children, checkInterval = 30000 }: Extension
 
   const checkConnection = useCallback(async (): Promise<boolean> => {
     setState(prev => ({ ...prev, isChecking: true, error: undefined }));
-    try {
-      const client = getExtensionClient();
-      const response = await client.send('PING');
-      setState({ isConnected: true, isChecking: false, version: response.version });
-      return true;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      setState({ isConnected: false, isChecking: false, error: message });
-      return false;
+
+    // 최대 3회 재시도 (Extension Service Worker 재시작 대기)
+    const maxRetries = 3;
+    const retryDelay = 500; // 500ms
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const client = getExtensionClient();
+        const response = await client.send('PING');
+        setState({ isConnected: true, isChecking: false, version: response.version });
+        return true;
+      } catch (error) {
+        // 마지막 시도가 아니면 대기 후 재시도
+        if (attempt < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          continue;
+        }
+        // 마지막 시도 실패
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        setState({ isConnected: false, isChecking: false, error: message });
+        return false;
+      }
     }
+    return false;
   }, []);
 
   const retry = useCallback(() => { checkConnection(); }, [checkConnection]);
