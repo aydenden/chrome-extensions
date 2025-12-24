@@ -8,7 +8,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: [['html'], ['list']],
   use: {
-    baseURL: 'http://localhost:5173/ai-company-analyzer',
+    baseURL: 'http://localhost:5173/ai-company-analyzer/',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
