@@ -21,7 +21,7 @@ function trailingSlashRedirect(): PluginOption {
 
 export default defineConfig({
   plugins: [react(), trailingSlashRedirect()],
-  base: '/ai-company-analyzer/',
+  base: '/chrome-extensions/ai-company-analyzer/',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

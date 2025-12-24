@@ -46,3 +46,6 @@ extension/
 ├── manifest.json      # Manifest V3 설정
 └── vite.config.ts     # Vite 빌드 설정
 ```
+
+---
+*Last updated: 2024-12-24*

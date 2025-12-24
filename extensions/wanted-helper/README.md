@@ -93,3 +93,6 @@ Chrome 브라우저에서 다음 중 한 가지 방법으로 확장 프로그램
   - `activeTab`: 현재 탭 접근
   - `scripting`: 페이지 스크립트 실행
   - `webRequest`: 웹 요청 모니터링
+
+---
+*Last updated: 2024-12-24*
