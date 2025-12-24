@@ -8,6 +8,7 @@ Extension과 SPA가 공유하는 타입/상수
 - models.ts: CompanyDTO, ImageMetaDTO 등
 - errors.ts: ErrorCode
 - validation.ts: Zod 스키마
+- analysis-port.ts: Port 프로토콜 (AnalysisCommand, AnalysisEvent)
 
 ## 메시지 타입 추가 시
 1. messages.ts의 MessageType에 추가
@@ -18,6 +19,7 @@ Extension과 SPA가 공유하는 타입/상수
 
 ## 상수 (`constants/`)
 - categories.ts: DATA_TYPES, IMAGE_SUB_CATEGORIES
+- extension.ts: EXTENSION_ID
 - 새 카테고리 추가 시 라벨/컬러도 함께
 
 ## Import 방식

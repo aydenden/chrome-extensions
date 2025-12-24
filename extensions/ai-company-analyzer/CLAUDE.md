@@ -2,8 +2,9 @@
 
 ## 아키텍처
 
-- **Extension**: 데이터 수집/저장 (IndexedDB via Dexie)
-- **SPA**: UI/AI 분석 (GitHub Pages 배포)
+- **Extension**: 데이터 수집/저장 + AI 분석 (IndexedDB, Service Worker)
+- **SPA**: UI 표시 + 분석 상태 구독 (GitHub Pages 배포)
+- **통신**: Port 양방향 (`analysis-stream`) + External API 단방향
 
 자세한 스펙은 `docs/spa-with-extension/spec/` 참조
 

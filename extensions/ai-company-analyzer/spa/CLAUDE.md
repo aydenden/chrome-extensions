@@ -15,7 +15,8 @@
 ## 상태 관리
 - React Query: 서버 데이터 (회사, 이미지)
 - ExtensionContext: 연결 상태
-- OllamaContext: AI 설정
+- OllamaContext: Ollama 연결 상태 표시
+- AnalysisContext: 분석 상태 관리 (Port 통신)
 
 ## Extension 통신
 `src/lib/extension-client/client.ts`
@@ -23,11 +24,11 @@
 - `getExtensionClient().send(type, payload)`
 
 ## AI 분석 흐름
-`src/lib/analysis/orchestrator.ts`
-1. 이미지 로드/최적화 (image-loader.ts)
-2. 개별 분석 (image-analyzer.ts)
-3. 종합 분석 (synthesis.ts)
-4. 저장 (BATCH_SAVE_ANALYSIS)
+분석은 Extension에서 실행 (SPA는 UI만 담당)
+- `src/contexts/AnalysisContext.tsx` - Port 연결, 이벤트 구독
+- `src/lib/analysis-port/connection.ts` - Port 연결 관리
+- 명령: START_ANALYSIS, ABORT_ANALYSIS, GET_STATUS, RETRY_FAILED
+- 이벤트: STATUS, STREAM_CHUNK, IMAGE_COMPLETE, COMPLETE, ERROR
 
 ## 스타일
 Tailwind CSS - `src/styles/globals.css`
