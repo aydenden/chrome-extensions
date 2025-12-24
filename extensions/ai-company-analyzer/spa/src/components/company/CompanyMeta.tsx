@@ -18,7 +18,7 @@ export default function CompanyMeta({ company }: CompanyMetaProps) {
     <div className="bg-surface-raised border-2 border-ink p-6">
       <div className="mb-4">
         <h3 className="text-sm font-semibold text-ink-muted mb-2">데이터 소스</h3>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2" data-testid="data-sources">
           {company.dataSources.map((source) => (
             <span
               key={source}

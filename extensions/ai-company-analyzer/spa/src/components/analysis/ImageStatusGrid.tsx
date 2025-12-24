@@ -120,6 +120,7 @@ function ImageStatusItem({ image, status, onUpdateMemo, isAnalyzing }: ImageStat
   return (
     <div
       className={`p-3 border-2 transition-colors relative ${statusStyles[status]}`}
+      data-testid="image-item"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -221,7 +222,7 @@ export default function ImageStatusGrid({
   };
 
   return (
-    <Card className="p-6">
+    <Card className="p-6" data-testid="image-list">
       {/* 헤더 + 토글 */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="headline text-xl">

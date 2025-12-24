@@ -258,7 +258,7 @@ function OllamaStatusCard({ isConnected, selectedModel }: OllamaStatusCardProps)
       <div className="space-y-3">
         <div>
           <div className="text-sm text-ink-muted mb-1">연결 상태</div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" data-testid="engine-status">
             <div
               className={`w-2 h-2 rounded-full ${
                 isConnected ? 'bg-signal-positive' : 'bg-signal-negative'
@@ -269,7 +269,7 @@ function OllamaStatusCard({ isConnected, selectedModel }: OllamaStatusCardProps)
         </div>
         <div>
           <div className="text-sm text-ink-muted mb-1">선택된 모델</div>
-          <div className="data-figure">{selectedModel || '미선택'}</div>
+          <div className="data-figure" data-testid="engine-name">{selectedModel || '미선택'}</div>
         </div>
         {!isConnected && (
           <div className="mt-4 p-3 bg-surface-sunken text-sm text-ink-muted">

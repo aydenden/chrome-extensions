@@ -13,7 +13,7 @@ export default function ImageCard({ image, onClick, onDelete }: ImageCardProps) 
   const { data: thumbnail, isLoading } = useThumbnailWithCache(image.id);
 
   return (
-    <div className="group relative aspect-square bg-surface-sunken border-2 border-ink overflow-hidden cursor-pointer" onClick={onClick}>
+    <div className="group relative aspect-square bg-surface-sunken border-2 border-ink overflow-hidden cursor-pointer" data-testid="image-card" onClick={onClick}>
       {isLoading ? (
         <div className="absolute inset-0 flex items-center justify-center">
           <Spinner size="md" />

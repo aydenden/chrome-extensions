@@ -21,7 +21,7 @@ export default function PageHeader({ title, subtitle, backTo, actions }: PageHea
         )}
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="headline text-3xl sm:text-4xl">{title}</h1>
+            <h1 className="headline text-3xl sm:text-4xl" data-testid="company-name">{title}</h1>
             {subtitle && <p className="text-ink-muted mt-2">{subtitle}</p>}
           </div>
           {actions && <div className="flex items-center gap-3">{actions}</div>}

@@ -117,7 +117,7 @@ export default function CompanyDetail() {
 
         {/* 종합 분석 결과 */}
         {company.analysis && (
-          <div className="col-span-12">
+          <div className="col-span-12" data-testid="analysis-content">
             <Card className="p-6">
               <h2 className="headline text-xl mb-4">AI 종합 분석</h2>
 
