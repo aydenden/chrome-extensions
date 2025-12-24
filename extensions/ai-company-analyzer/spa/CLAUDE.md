@@ -36,3 +36,8 @@ Tailwind CSS - `src/styles/globals.css`
 
 ## 환경변수
 `VITE_EXTENSION_ID`: 익스텐션 ID (없으면 연결 실패)
+
+## 테스트
+```bash
+bun run test:run
+```

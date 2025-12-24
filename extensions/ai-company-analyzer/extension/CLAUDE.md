@@ -43,3 +43,8 @@ shared 모듈에서 import:
 ```typescript
 import type { MessageType } from '@shared/types';
 ```
+
+## 테스트
+```bash
+bun run test:run
+```
