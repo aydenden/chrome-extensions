@@ -42,7 +42,7 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter basename="/ai-company-analyzer/">
+    <BrowserRouter basename="/chrome-extensions/ai-company-analyzer/">
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <ExtensionProvider>
