@@ -1,0 +1,96 @@
+name: Release Extensions
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+    paths:
+      - 'extensions/ai-company-analyzer/extension/**'
+      - 'extensions/ai-company-analyzer/shared/**'
+      - 'extensions/wanted-helper/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build wanted-helper
+        run: bun run build:wanted
+
+      - name: Build ai-company-analyzer extension
+        run: bun run build:ai-analyzer
+
+      - name: Package wanted-helper
+        run: |
+          cd extensions/wanted-helper
+          zip -r ../../wanted-helper.zip manifest.json dist/
+
+      - name: Package ai-company-analyzer extension
+        run: |
+          cd extensions/ai-company-analyzer/extension/dist
+          zip -r ../../../../ai-company-analyzer-extension.zip .
+
+      - name: Get version info
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+            echo "is_tag=true" >> $GITHUB_OUTPUT
+          else
+            echo "tag=dev-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+            echo "is_tag=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ steps.version.outputs.is_tag }}" = "true" ]; then
+            gh release create "${{ steps.version.outputs.tag }}" \
+              --title "Release ${{ steps.version.outputs.tag }}" \
+              --notes "## Chrome Extensions Release
+
+### Downloads
+- **wanted-helper.zip** - Wanted Helper 익스텐션
+- **ai-company-analyzer-extension.zip** - AI Company Analyzer 익스텐션
+
+### Installation
+1. 파일 다운로드 후 압축 해제
+2. Chrome에서 \`chrome://extensions/\` 접속
+3. 개발자 모드 활성화
+4. '압축해제된 확장 프로그램을 로드합니다' 클릭
+5. 압축 해제한 폴더 선택" \
+              wanted-helper.zip \
+              ai-company-analyzer-extension.zip
+          else
+            gh release create "${{ steps.version.outputs.tag }}" \
+              --title "Development Build ${{ steps.version.outputs.tag }}" \
+              --notes "Automatic development build from commit ${GITHUB_SHA}
+
+**This is a pre-release build for testing purposes.**" \
+              --prerelease \
+              wanted-helper.zip \
+              ai-company-analyzer-extension.zip
+          fi

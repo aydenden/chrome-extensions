@@ -7,6 +7,7 @@ on:
     paths:
       - 'extensions/ai-company-analyzer/spa/**'
       - 'extensions/ai-company-analyzer/shared/**'
+      - 'public/**'
   workflow_dispatch:
 
 permissions:
@@ -42,13 +43,19 @@ jobs:
       - name: Build SPA
         run: bun run --cwd extensions/ai-company-analyzer/spa build
 
+      - name: Prepare deployment
+        run: |
+          mkdir -p deploy/ai-company-analyzer
+          cp public/index.html deploy/
+          cp -r extensions/ai-company-analyzer/spa/dist/* deploy/ai-company-analyzer/
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: extensions/ai-company-analyzer/spa/dist
+          path: deploy
 
   deploy:
     environment:
