@@ -12,7 +12,9 @@
     "*://dart.fss.or.kr/*",
     "*://*.teamblind.com/*",
     "*://*.saramin.co.kr/*",
-    "*://*.smes.go.kr/*"
+    "*://*.smes.go.kr/*",
+    "http://localhost:11434/*",
+    "http://127.0.0.1:11434/*"
   ],
   "externally_connectable": {
     "matches": [

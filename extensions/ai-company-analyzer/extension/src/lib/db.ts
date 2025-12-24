@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type { DataType, ImageSubCategory } from '@shared/constants/categories';
+import type { AnalysisStep, SynthesisResult } from '@shared/types';
 
 /** Company 테이블 스키마 */
 export interface Company {
@@ -46,9 +47,49 @@ export interface StoredImage {
   updatedAt?: Date;
 }
 
+/** AnalysisSession 테이블 스키마 (백그라운드 분석 세션) */
+export interface AnalysisSession {
+  id: string;
+  companyId: string;
+  companyName: string;
+  imageIds: string[];
+  step: AnalysisStep;
+  current: number;
+  total: number;
+  currentImageId?: string;
+  completedImageIds: string[];
+  failedImageIds: string[];
+  results: Array<{
+    imageId: string;
+    category: ImageSubCategory;
+    rawText: string;
+    analysis: string;
+  }>;
+  synthesis: SynthesisResult | null;
+  analysisContext?: string;
+  promptSettings?: {
+    imageAnalysis?: string;
+    synthesis?: string;
+  };
+  model: string;
+  error?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** OllamaSettings 테이블 스키마 */
+export interface OllamaSettings {
+  id: 'default';
+  endpoint: string;
+  model: string;
+  updatedAt: Date;
+}
+
 class AnalyzerDatabase extends Dexie {
   companies!: Table<Company, string>;
   images!: Table<StoredImage, string>;
+  analysisSessions!: Table<AnalysisSession, string>;
+  ollamaSettings!: Table<OllamaSettings, string>;
 
   constructor() {
     super('AICompanyAnalyzer');
@@ -62,6 +103,14 @@ class AnalyzerDatabase extends Dexie {
     this.version(3).stores({
       companies: 'id, name, url, siteType, createdAt, updatedAt',
       images: 'id, companyId, siteType, category, analyzedModel, createdAt',
+    });
+
+    // Version 4: 백그라운드 분석 세션 및 Ollama 설정 테이블 추가
+    this.version(4).stores({
+      companies: 'id, name, url, siteType, createdAt, updatedAt',
+      images: 'id, companyId, siteType, category, analyzedModel, createdAt',
+      analysisSessions: 'id, companyId, step, createdAt, updatedAt',
+      ollamaSettings: 'id',
     });
   }
 }

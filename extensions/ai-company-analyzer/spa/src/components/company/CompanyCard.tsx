@@ -1,8 +1,9 @@
 import { useNavigate } from 'react-router-dom';
-import { Card, Button } from '@/components/ui';
+import { Card, Button, Spinner } from '@/components/ui';
 import { ROUTES } from '@/lib/routes';
 import { SOURCE_COLORS, type DataType } from '@shared/constants';
 import type { CompanyDTO } from '@shared/types';
+import { useAnalysis } from '@/contexts/AnalysisContext';
 
 interface CompanyCardProps {
   company: CompanyDTO;
@@ -11,6 +12,11 @@ interface CompanyCardProps {
 
 export default function CompanyCard({ company, onDelete }: CompanyCardProps) {
   const navigate = useNavigate();
+  const { status, overallProgress } = useAnalysis();
+
+  // 현재 이 회사가 분석 중인지 확인
+  const isAnalyzing = status.step !== 'idle' && status.step !== 'done' && status.step !== 'error'
+    && status.sessionId && status.sessionId.includes(company.id);
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -36,6 +42,12 @@ export default function CompanyCard({ company, onDelete }: CompanyCardProps) {
                 {source}
               </span>
             ))}
+            {isAnalyzing && (
+              <span className="px-2 py-1 text-xs font-semibold bg-highlight-yellow text-ink flex items-center gap-1">
+                <Spinner size="sm" />
+                분석 중 {overallProgress > 0 ? `${Math.round(overallProgress)}%` : ''}
+              </span>
+            )}
           </div>
         </div>
         <Button

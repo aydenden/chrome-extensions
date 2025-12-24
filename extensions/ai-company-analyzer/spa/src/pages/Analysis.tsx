@@ -7,9 +7,9 @@ import { useParams } from 'react-router-dom';
 import { PageHeader } from '@/components/layout';
 import Card from '@/components/ui/Card';
 import { useOllama } from '@/contexts/OllamaContext';
+import { useAnalysis } from '@/contexts/AnalysisContext';
 import { useImages, useUpdateImageMemo } from '@/hooks/useImages';
 import { useCompany, useUpdateCompanyContext } from '@/hooks/useCompanies';
-import { useAnalysisSession } from '@/hooks/useAnalysisSession';
 import { usePromptSettings } from '@/hooks/usePromptSettings';
 import {
   AnalysisProgress,
@@ -41,20 +41,56 @@ export default function Analysis() {
     }
   }, [company?.analysisContext]);
 
-  // 분석 세션 훅
+  // 분석 Context (Port 기반 통신)
   const {
-    isRunning,
-    progress,
-    results,
-    completedImageIds,
-    failedImageIds,
+    status,
+    results: analysisResults,
     synthesis,
     overallProgress,
     streaming,
     synthesisStreaming,
-    startAnalysis,
-    stopAnalysis,
-  } = useAnalysisSession();
+    startAnalysis: startAnalysisPort,
+    abortAnalysis,
+  } = useAnalysis();
+
+  // 현재 회사에 대한 분석 세션인지 확인
+  const isCurrentCompanySession = status.companyId === companyId;
+  const isDifferentCompanyRunning = status.step !== 'idle' && status.step !== 'done' && status.step !== 'error'
+    && status.companyId && status.companyId !== companyId;
+
+  // 상태 변환 (호환성) - 현재 회사 세션만 표시
+  const isRunning = isCurrentCompanySession
+    && status.step !== 'idle' && status.step !== 'done' && status.step !== 'error';
+  const completedImageIds = useMemo(
+    () => new Set(isCurrentCompanySession ? status.completedImageIds : []),
+    [status.completedImageIds, isCurrentCompanySession]
+  );
+  const failedImageIds = useMemo(
+    () => new Set(isCurrentCompanySession ? status.failedImageIds : []),
+    [status.failedImageIds, isCurrentCompanySession]
+  );
+
+  // 결과 변환 (ImageCompletePayload → AnalysisResultItem 호환) - 현재 회사만
+  const results = useMemo(() => {
+    if (!isCurrentCompanySession) return [];
+    return analysisResults.map((r) => ({
+      imageId: r.imageId,
+      category: r.category,
+      rawText: r.rawText,
+      analysis: r.analysis,
+    }));
+  }, [analysisResults, isCurrentCompanySession]);
+
+  // 현재 회사 세션의 synthesis만 표시
+  const currentSynthesis = isCurrentCompanySession ? synthesis : null;
+
+  // progress 변환 (AnalysisStatus → StepProgress 호환)
+  const progress = useMemo(() => ({
+    step: status.step,
+    current: status.current,
+    total: status.total,
+    message: status.message,
+  }), [status]);
 
   // 이미지 분류: 이전 분석 완료 vs 신규 분석 대상
   const { previouslyAnalyzed, toBeAnalyzed } = useMemo(() => {
@@ -83,17 +119,17 @@ export default function Analysis() {
   // 분석 시작 핸들러
   const handleStart = useCallback(() => {
     if (!companyId || !targetImages || targetImages.length === 0) return;
-    startAnalysis(
+    startAnalysisPort({
       companyId,
-      company?.name || '',
-      targetImages.map((img) => img.id),
-      analysisContext,
-      promptSettings ? {
+      companyName: company?.name || '',
+      imageIds: targetImages.map((img) => img.id),
+      analysisContext: analysisContext || undefined,
+      promptSettings: promptSettings ? {
         imageAnalysis: promptSettings.imageAnalysis.prompt,
         synthesis: promptSettings.synthesis.prompt,
-      } : undefined
-    );
-  }, [companyId, company?.name, targetImages, startAnalysis, analysisContext, promptSettings]);
+      } : undefined,
+    });
+  }, [companyId, company?.name, targetImages, startAnalysisPort, analysisContext, promptSettings]);
 
   // 컨텍스트 저장 핸들러
   const handleSaveContext = useCallback(() => {
@@ -106,11 +142,15 @@ export default function Analysis() {
     updateMemo.mutate({ imageId, memo });
   }, [updateMemo]);
 
-  // 시작 가능 여부
-  const canStart = ollamaConnected && !!selectedModel && targetImages.length > 0;
+  // 시작 가능 여부 (다른 회사 분석 중이면 시작 불가)
+  const canStart = ollamaConnected && !!selectedModel && targetImages.length > 0 && !isDifferentCompanyRunning;
 
-  // 현재 분석 중인 이미지 ID
-  const currentAnalyzingId = streaming.currentImageId;
+  // 현재 분석 중인 이미지 ID (현재 회사 세션만)
+  const currentAnalyzingId = isCurrentCompanySession ? streaming.currentImageId : null;
+
+  // 현재 회사 세션의 스트리밍 상태만 표시
+  const currentStreaming = isCurrentCompanySession ? streaming : { currentImageId: null, phase: 'idle' as const, thinkingText: '', contentText: '' };
+  const currentSynthesisStreaming = isCurrentCompanySession ? synthesisStreaming : { phase: 'idle' as const, thinkingText: '', contentText: '' };
 
   return (
     <>
@@ -139,17 +179,31 @@ export default function Analysis() {
           />
         </div>
 
+        {/* 다른 회사 분석 중 경고 */}
+        {isDifferentCompanyRunning && (
+          <div className="col-span-12">
+            <div className="p-4 bg-highlight-yellow/20 border border-highlight-yellow">
+              <p className="text-sm font-semibold">
+                다른 회사({status.companyName})의 분석이 진행 중입니다.
+              </p>
+              <p className="text-sm text-ink-muted mt-1">
+                현재 분석이 완료된 후 이 회사의 분석을 시작할 수 있습니다.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* 분석 진행 카드 */}
         <div className="col-span-12">
           <AnalysisProgress
             progress={progress}
-            overallProgress={overallProgress}
+            overallProgress={isCurrentCompanySession ? overallProgress : 0}
             isRunning={isRunning}
             canStart={canStart}
-            streaming={streaming}
-            synthesisStreaming={synthesisStreaming}
+            streaming={currentStreaming}
+            synthesisStreaming={currentSynthesisStreaming}
             onStart={handleStart}
-            onStop={stopAnalysis}
+            onStop={abortAnalysis}
           />
         </div>
 
@@ -171,9 +225,9 @@ export default function Analysis() {
         )}
 
         {/* 종합 분석 결과 */}
-        {synthesis && (
+        {currentSynthesis && (
           <div className="col-span-12">
-            <SynthesisCard synthesis={synthesis} />
+            <SynthesisCard synthesis={currentSynthesis} />
           </div>
         )}
 

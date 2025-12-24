@@ -124,7 +124,7 @@ export class StreamBuffer {
     const lines = this.buffer.split('\n');
     // 마지막 불완전한 라인은 버퍼에 유지
     this.buffer = lines.pop() || '';
-    return lines.filter(line => line.trim());
+    return lines.filter((line) => line.trim());
   }
 
   /**

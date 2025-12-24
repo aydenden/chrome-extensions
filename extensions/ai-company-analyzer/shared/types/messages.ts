@@ -24,6 +24,8 @@ export type MessageType =
   | 'UPDATE_COMPANY_CONTEXT'
   | 'GET_PROMPT_SETTINGS'
   | 'SET_PROMPT_SETTINGS'
+  | 'GET_OLLAMA_SETTINGS'
+  | 'SET_OLLAMA_SETTINGS'
   | 'PING'
   | 'GET_STATS';
 
@@ -94,6 +96,11 @@ export interface MessagePayload {
     imageAnalysis?: { prompt: string };
     synthesis?: { prompt: string };
   };
+  GET_OLLAMA_SETTINGS: undefined;
+  SET_OLLAMA_SETTINGS: {
+    endpoint: string;
+    model: string;
+  };
   PING: undefined;
   GET_STATS: undefined;
 }
@@ -122,6 +129,12 @@ export interface MessageResponse {
     synthesis: { prompt: string; updatedAt: string } | null;
   };
   SET_PROMPT_SETTINGS: { updatedAt: string };
+  GET_OLLAMA_SETTINGS: {
+    endpoint: string;
+    model: string;
+    updatedAt: string;
+  } | null;
+  SET_OLLAMA_SETTINGS: { updatedAt: string };
   PING: { version: string; timestamp: string };
   GET_STATS: StatsDTO;
 }
@@ -142,6 +155,8 @@ export type ExtensionRequest =
   | { type: 'UPDATE_COMPANY_CONTEXT'; payload: MessagePayload['UPDATE_COMPANY_CONTEXT'] }
   | { type: 'GET_PROMPT_SETTINGS' }
   | { type: 'SET_PROMPT_SETTINGS'; payload: MessagePayload['SET_PROMPT_SETTINGS'] }
+  | { type: 'GET_OLLAMA_SETTINGS' }
+  | { type: 'SET_OLLAMA_SETTINGS'; payload: MessagePayload['SET_OLLAMA_SETTINGS'] }
   | { type: 'PING' }
   | { type: 'GET_STATS' };
 

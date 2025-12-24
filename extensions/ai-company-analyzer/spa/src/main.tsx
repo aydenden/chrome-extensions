@@ -1,11 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { autoInitExtensionClient } from '@/lib/extension-client';
+import { EXTENSION_ID } from '@shared/constants';
 import App from './App';
 import './styles/globals.css';
 
-// Extension Client 초기화 (manifest.json key로 고정된 ID)
-const EXTENSION_ID = 'opndpciajcchajfpcafiglahllclcgam';
+// Extension Client 초기화
 autoInitExtensionClient(EXTENSION_ID);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

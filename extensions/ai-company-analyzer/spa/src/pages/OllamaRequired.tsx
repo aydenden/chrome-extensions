@@ -7,6 +7,8 @@ import Button from '@/components/ui/Button';
 const OLLAMA_URL = 'https://ollama.com';
 const OLLAMA_PULL_CMD = 'ollama pull qwen2-vl:4b';
 const OLLAMA_LIST_CMD = 'ollama list';
+const OLLAMA_ORIGINS_CMD = "launchctl setenv OLLAMA_ORIGINS 'chrome-extension://opndpciajcchajfpcafiglahllclcgam'";
+const OLLAMA_RESTART_CMD = 'pkill ollama && ollama serve';
 
 interface InstallStep {
   number: number;
@@ -27,6 +29,8 @@ export default function OllamaRequired() {
 
   const [copiedPull, setCopiedPull] = useState(false);
   const [copiedList, setCopiedList] = useState(false);
+  const [copiedOrigins, setCopiedOrigins] = useState(false);
+  const [copiedRestart, setCopiedRestart] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // 5초 자동 체크
@@ -65,6 +69,18 @@ export default function OllamaRequired() {
     setTimeout(() => setCopiedList(false), 2000);
   };
 
+  const handleCopyOrigins = async () => {
+    await navigator.clipboard.writeText(OLLAMA_ORIGINS_CMD);
+    setCopiedOrigins(true);
+    setTimeout(() => setCopiedOrigins(false), 2000);
+  };
+
+  const handleCopyRestart = async () => {
+    await navigator.clipboard.writeText(OLLAMA_RESTART_CMD);
+    setCopiedRestart(true);
+    setTimeout(() => setCopiedRestart(false), 2000);
+  };
+
   const handleRetry = () => {
     checkConnection();
   };
@@ -99,6 +115,28 @@ export default function OllamaRequired() {
       action: {
         label: copiedList ? '복사됨!' : '복사',
         onClick: handleCopyList,
+        variant: 'secondary',
+      },
+    },
+    {
+      number: 4,
+      title: 'Extension 연결 설정 (macOS)',
+      description: 'Extension이 Ollama에 접근할 수 있도록 환경변수를 설정하세요.',
+      code: OLLAMA_ORIGINS_CMD,
+      action: {
+        label: copiedOrigins ? '복사됨!' : '복사',
+        onClick: handleCopyOrigins,
+        variant: 'secondary',
+      },
+    },
+    {
+      number: 5,
+      title: 'Ollama 재시작',
+      description: '환경변수 적용을 위해 Ollama를 재시작하세요.',
+      code: OLLAMA_RESTART_CMD,
+      action: {
+        label: copiedRestart ? '복사됨!' : '복사',
+        onClick: handleCopyRestart,
         variant: 'secondary',
       },
     },

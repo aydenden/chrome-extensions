@@ -2,6 +2,7 @@
 import { db } from '@/lib/db';
 import { getStats, getAllCompanies } from '@/lib/storage';
 import { initExternalApi } from './external-api';
+import { initAnalysisPort } from './analysis-port';
 import { captureAndSave, captureRegion, captureFullScreen } from './capture-service';
 
 console.log('AI Company Analyzer Extension loaded');
@@ -9,6 +10,9 @@ console.log('DB initialized:', db.name);
 
 // Initialize External API
 initExternalApi();
+
+// Initialize Analysis Port (SPA 양방향 통신)
+initAnalysisPort();
 
 // ============================================================================
 // 이미지 crop 유틸리티 함수

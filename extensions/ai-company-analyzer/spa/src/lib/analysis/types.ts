@@ -1,21 +1,18 @@
 /**
- * AI 분석 관련 타입 정의
+ * AI 분석 관련 타입 정의 (UI용)
+ *
+ * Note: 실제 분석은 Extension Service Worker에서 수행
+ * 이 타입들은 UI 렌더링 및 상태 표시용으로만 사용
  */
 import type { ImageSubCategory } from '@shared/constants/categories';
+import type { SynthesisResult, AnalysisStep as SharedAnalysisStep } from '@shared/types';
 
 // ============================================================================
-// 분석 단계
+// Re-export from shared
 // ============================================================================
 
-/** 분석 진행 단계 */
-export type AnalysisStep =
-  | 'idle'
-  | 'loading-images'
-  | 'analyzing'
-  | 'synthesizing'
-  | 'saving'
-  | 'done'
-  | 'error';
+export type { SynthesisResult };
+export type AnalysisStep = SharedAnalysisStep;
 
 // ============================================================================
 // 진행 상태
@@ -67,46 +64,8 @@ export interface AnalysisSessionState {
   results: AnalysisResultItem[];
   completedImageIds: Set<string>;
   failedImageIds: Set<string>;
-  synthesis: import('./synthesis').SynthesisResult | null;
+  synthesis: SynthesisResult | null;
   error: string | null;
-}
-
-// ============================================================================
-// 분석 옵션
-// ============================================================================
-
-/** 분석 실행 옵션 */
-export interface AnalysisOptions {
-  /** 스트리밍 사용 여부 */
-  useStreaming?: boolean;
-  /** 진행 상태 콜백 */
-  onProgress?: (progress: StepProgress) => void;
-  /** 이미지 분석 완료 콜백 */
-  onImageComplete?: (result: AnalysisResultItem) => void;
-  /** 스트리밍 청크 콜백 (이미지 분석용) */
-  onStreamChunk?: (imageId: string, chunk: import('@/lib/ai/types').StreamChunk) => void;
-  /** 종합 분석 스트리밍 청크 콜백 */
-  onSynthesisStreamChunk?: (chunk: import('@/lib/ai/types').StreamChunk) => void;
-  /** 중단 시그널 */
-  abortSignal?: AbortSignal;
-  /** 분석 컨텍스트 (종합 분석에 사용) */
-  analysisContext?: string;
-  /** 커스텀 이미지 분석 프롬프트 템플릿 */
-  imageAnalysisPrompt?: string;
-  /** 커스텀 종합 분석 프롬프트 템플릿 */
-  synthesisPrompt?: string;
-}
-
-// ============================================================================
-// Orchestrator 결과
-// ============================================================================
-
-/** Orchestrator 실행 결과 */
-export interface OrchestratorResult {
-  results: AnalysisResultItem[];
-  synthesis: import('./synthesis').SynthesisResult | null;
-  savedCount: number;
-  failedCount: number;
 }
 
 // ============================================================================

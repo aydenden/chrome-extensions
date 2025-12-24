@@ -2,6 +2,7 @@ export * from './messages';
 export * from './models';
 export * from './errors';
 export * from './settings';
+export * from './analysis-port';
 
 export type {
   ValidatedCompany,

@@ -1,4 +1,5 @@
 import { registerHandler } from '../external-api';
+import { db } from '../../lib/db';
 
 const PROMPT_SETTINGS_KEY = 'promptSettings';
 
@@ -51,5 +52,34 @@ export function registerSettingsHandlers(): void {
     await chrome.storage.local.set({ [PROMPT_SETTINGS_KEY]: updated });
 
     return { updatedAt: now };
+  });
+
+  /**
+   * GET_OLLAMA_SETTINGS: Ollama 설정 조회
+   */
+  registerHandler('GET_OLLAMA_SETTINGS', async () => {
+    const settings = await db.ollamaSettings.get('default');
+    if (!settings) {
+      return null;
+    }
+    return {
+      endpoint: settings.endpoint,
+      model: settings.model,
+      updatedAt: settings.updatedAt.toISOString(),
+    };
+  });
+
+  /**
+   * SET_OLLAMA_SETTINGS: Ollama 설정 저장
+   */
+  registerHandler('SET_OLLAMA_SETTINGS', async (payload) => {
+    const now = new Date();
+    await db.ollamaSettings.put({
+      id: 'default',
+      endpoint: payload.endpoint,
+      model: payload.model,
+      updatedAt: now,
+    });
+    return { updatedAt: now.toISOString() };
   });
 }

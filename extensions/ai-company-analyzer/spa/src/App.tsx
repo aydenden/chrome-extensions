@@ -3,10 +3,12 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/query/client';
 import { ExtensionProvider, useExtension } from '@/contexts/ExtensionContext';
 import { OllamaProvider } from '@/contexts/OllamaContext';
+import { AnalysisProvider } from '@/contexts/AnalysisContext';
 import { ToastProvider } from '@/components/ui';
 import { Layout } from '@/components/layout';
 import { ErrorBoundary } from '@/components/errors/ErrorBoundary';
 import { ExtensionErrorBoundary } from '@/components/errors/ExtensionErrorBoundary';
+import { EXTENSION_ID } from '@shared/constants';
 
 import CompanyList from '@/pages/CompanyList';
 import CompanyDetail from '@/pages/CompanyDetail';
@@ -45,11 +47,13 @@ export default function App() {
         <QueryClientProvider client={queryClient}>
           <ExtensionProvider>
             <OllamaProvider>
-              <ToastProvider>
-                <ExtensionErrorBoundary fallback={<ExtensionRequired />}>
-                  <AppRoutes />
-                </ExtensionErrorBoundary>
-              </ToastProvider>
+              <AnalysisProvider extensionId={EXTENSION_ID}>
+                <ToastProvider>
+                  <ExtensionErrorBoundary fallback={<ExtensionRequired />}>
+                    <AppRoutes />
+                  </ExtensionErrorBoundary>
+                </ToastProvider>
+              </AnalysisProvider>
             </OllamaProvider>
           </ExtensionProvider>
         </QueryClientProvider>

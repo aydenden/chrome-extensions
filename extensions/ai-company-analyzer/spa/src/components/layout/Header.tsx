@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useOllama } from '@/contexts/OllamaContext';
+import { useAnalysis } from '@/contexts/AnalysisContext';
 import { cn } from '@/lib/utils';
 
 type StatusType = 'ready' | 'loading' | 'error' | 'idle';
@@ -33,6 +34,10 @@ export default function Header({ isConnected = false }: HeaderProps) {
   const location = useLocation();
   const isSettingsPage = location.pathname === '/settings';
   const { isConnected: ollamaConnected, isChecking: ollamaChecking } = useOllama();
+  const { status, overallProgress } = useAnalysis();
+
+  // 분석 진행 중인지 확인
+  const isAnalyzing = status.step !== 'idle' && status.step !== 'done' && status.step !== 'error';
 
   return (
     <header className="border-b-2 border-ink bg-paper sticky top-0 z-50">
@@ -46,6 +51,14 @@ export default function Header({ isConnected = false }: HeaderProps) {
                 label="Ollama"
                 status={ollamaChecking ? 'loading' : ollamaConnected ? 'ready' : 'error'}
               />
+              {isAnalyzing && (
+                <div className="flex items-center gap-1.5 px-2 py-1 bg-highlight-yellow/20 rounded">
+                  <div className="w-2 h-2 rounded-full bg-highlight-yellow animate-pulse" />
+                  <span className="text-xs font-semibold">
+                    분석 중 {overallProgress > 0 ? `${Math.round(overallProgress)}%` : ''}
+                  </span>
+                </div>
+              )}
             </div>
             <Link
               to="/settings"

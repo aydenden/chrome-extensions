@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { PageHeader } from '@/components/layout';
 import { Button, Card, Modal, Spinner } from '@/components/ui';
 import { PromptSettingsCard } from '@/components/settings';
 import { useStats } from '@/hooks/useStats';
 import { useOllama } from '@/contexts/OllamaContext';
+import { getExtensionClient } from '@/lib/extension-client';
 import { cn } from '@/lib/utils';
 
 export default function Settings() {
@@ -26,11 +27,79 @@ export default function Settings() {
   } = useOllama();
 
   const [localEndpoint, setLocalEndpoint] = useState(endpoint);
+  const [endpointError, setEndpointError] = useState<string | null>(null);
 
+  // localhost 유효성 검사
+  const validateEndpoint = useCallback((value: string): boolean => {
+    try {
+      const url = new URL(value);
+      const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+      if (!isLocalhost) {
+        setEndpointError('localhost 또는 127.0.0.1만 지원합니다');
+        return false;
+      }
+      setEndpointError(null);
+      return true;
+    } catch {
+      setEndpointError('올바른 URL 형식이 아닙니다');
+      return false;
+    }
+  }, []);
+
+  // Extension과 설정 동기화
+  const syncSettingsToExtension = useCallback(async (newEndpoint: string, newModel: string) => {
+    try {
+      const client = getExtensionClient();
+      await client.send('SET_OLLAMA_SETTINGS', {
+        endpoint: newEndpoint,
+        model: newModel,
+      });
+    } catch (error) {
+      console.error('Failed to sync settings to Extension:', error);
+    }
+  }, []);
+
+  // 엔드포인트 저장
   const handleEndpointSave = () => {
+    if (!validateEndpoint(localEndpoint)) return;
     setEndpoint(localEndpoint);
     checkConnection();
+    // Extension에 저장 (현재 모델도 함께)
+    if (selectedModel) {
+      syncSettingsToExtension(localEndpoint, selectedModel);
+    }
   };
+
+  // 모델 선택 핸들러 (Extension 동기화 포함)
+  const handleModelSelect = (modelName: string) => {
+    selectModel(modelName);
+    // Extension에 저장
+    syncSettingsToExtension(endpoint, modelName);
+  };
+
+  // 초기 로드 시 Extension에서 설정 가져오기
+  useEffect(() => {
+    const loadSettingsFromExtension = async () => {
+      try {
+        const client = getExtensionClient();
+        const settings = await client.send('GET_OLLAMA_SETTINGS');
+        if (settings) {
+          // Extension에 저장된 설정이 있으면 로드
+          if (settings.endpoint && settings.endpoint !== endpoint) {
+            setLocalEndpoint(settings.endpoint);
+            setEndpoint(settings.endpoint);
+          }
+          if (settings.model && settings.model !== selectedModel) {
+            selectModel(settings.model);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load settings from Extension:', error);
+      }
+    };
+    loadSettingsFromExtension();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleDeleteAll = async () => {
     setIsDeleting(true);
@@ -77,7 +146,7 @@ export default function Settings() {
                   className={cn(
                     'w-full mt-1 px-3 py-2 border bg-surface-elevated',
                     'focus:outline-none focus:ring-2 focus:ring-ink',
-                    error ? 'border-signal-negative' : 'border-border-subtle'
+                    (error || endpointError) ? 'border-signal-negative' : 'border-border-subtle'
                   )}
                   placeholder="http://localhost:11434"
                 />
@@ -116,8 +185,8 @@ export default function Settings() {
               </div>
 
               {/* 에러 메시지 */}
-              {error && !isChecking && (
-                <p className="text-sm text-signal-negative">{error}</p>
+              {(error || endpointError) && !isChecking && (
+                <p className="text-sm text-signal-negative">{endpointError || error}</p>
               )}
             </div>
           </Card>
@@ -169,7 +238,7 @@ export default function Settings() {
                           type="radio"
                           name="model"
                           checked={selectedModel === model.name}
-                          onChange={() => selectModel(model.name)}
+                          onChange={() => handleModelSelect(model.name)}
                           className="mr-3"
                         />
                         <div className="flex-1">
